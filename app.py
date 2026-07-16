@@ -2,19 +2,23 @@ import streamlit as st
 import requests
 from PIL import Image
 from PIL.ExifTags import TAGS, GPSTAGS
+import urllib.parse
 
 # Konfigurasi Halaman Utama
 st.set_page_config(
-    page_title="OSINT Tool Suite",
+    page_title="OSINT Tool Suite Pro",
     page_icon="🔍",
     layout="wide"
 )
 
-st.title("🔍 Mini OSINT Web Application")
+st.title("🔍 Advanced OSINT Web Application")
 st.write("iqbalmantam property (*Open Source Intelligence*).")
 
 # Pilihan Menu di Sidebar
-menu = st.sidebar.selectbox("Pilih Fitur OSINT:", ["Username Tracker", "Image EXIF Extractor"])
+menu = st.sidebar.selectbox(
+    "Pilih Fitur OSINT:", 
+    ["Username Tracker", "Image EXIF Extractor", "Email Breach Checker", "Google Dorking Assistant"]
+)
 
 # -------------------------------------------------------------------------
 # FITUR 1: USERNAME TRACKER
@@ -110,3 +114,74 @@ elif menu == "Image EXIF Extractor":
                     st.json(gps_info)
                 else:
                     st.info("Metadata umum ditemukan, tetapi gambar tidak mengandung koordinat lokasi (GPS).")
+
+# -------------------------------------------------------------------------
+# FITUR 3: EMAIL BREACH CHECKER
+# -------------------------------------------------------------------------
+elif menu == "Email Breach Checker":
+    st.header("📧 Email Data Breach Checker")
+    st.write("Periksa apakah email target pernah bocor dalam insiden peretasan publik menggunakan database intelijen terbuka.")
+    
+    email_input = st.text_input("Masukkan Alamat Email Target:", placeholder="contoh: target@email.com")
+    
+    if st.button("Cek Kebocoran Email"):
+        if email_input.strip() == "" or "@" not in email_input:
+            st.warning("Silakan masukkan alamat email yang valid.")
+        else:
+            st.info(f"Memeriksa database kebocoran untuk: **{email_input}**")
+            
+            # Menggunakan API publik gratis dari IntelX / LeakCheck via public proxy terpercaya
+            # Sebagai alternatif OSINT gratis yang tidak membutuhkan API Key berbayar
+            url = f"https://api.leakcheck.net/public?check={email_input}"
+            
+            try:
+                response = requests.get(url, timeout=7)
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    if data.get("success") and data.get("found", 0) > 0:
+                        st.error(f"🚨 BAHAYA! Ditemukan {data['found']} kebocoran yang melibatkan email ini!")
+                        
+                        # Tampilkan daftar sumber kebocoran
+                        st.subheader("Sumber Kebocoran Terdeteksi:")
+                        for breach in data.get("sources", []):
+                            st.write(f"• **{breach}**")
+                            
+                        st.warning("Rekomendasi: Segera ganti kata sandi email target dan aktifkan Autentikasi Dua Faktor (2FA).")
+                    else:
+                        st.success("✅ Aman! Email ini tidak ditemukan dalam database kebocoran publik saat ini.")
+                else:
+                    st.error("Gagal terhubung ke database LeakCheck. Coba lagi beberapa saat lagi.")
+            except Exception as e:
+                st.error(f"Terjadi kesalahan koneksi: {str(e)}")
+
+# -------------------------------------------------------------------------
+# FITUR 4: GOOGLE DORKING ASSISTANT
+# -------------------------------------------------------------------------
+elif menu == "Google Dorking Assistant":
+    st.header("🔏 Google Dorking Generator & Assistant")
+    st.write("Buat kueri pencarian spesifik Google (Dork) untuk menemukan informasi sensitif yang terekspos secara publik.")
+    
+    domain_target = st.text_input("Masukkan Domain/Situs Target (Opsional):", placeholder="misal: targetperusahaan.com")
+    keyword_target = st.text_input("Masukkan Kata Kunci / Nama Target:", placeholder="misal: \"rahasia\" atau \"confidential\"")
+    
+    st.subheader("Pilih Jenis Informasi yang Ingin Dicari:")
+    
+    # Membuat tombol dorking otomatis siap pakai
+    site_str = f"site:{domain_target} " if domain_target else ""
+    
+    dorks = {
+        "📂 Cari File Dokumen Sensitif (PDF, DOCX, XLSX)": f"{site_str}filetype:pdf OR filetype:docx OR filetype:xlsx {keyword_target}",
+        "🔑 Cari Halaman Login Admin / Panel Belakang": f"{site_str}inurl:login OR inurl:admin OR inurl:wp-login",
+        "🗂️ Cari Direktori Folder Terbuka (Index of)": f"{site_str}intitle:\"index of\" \"parent directory\"",
+        "📄 Cari File Konfigurasi / Backup database (SQL, ENV)": f"{site_str}filetype:sql OR filetype:env OR filetype:bak OR filetype:log",
+        "📝 Cari Dokumen Berlabel Rahasia/Internal": f"{site_str}\"internal use only\" OR \"confidential\" OR \"strictly private\" {keyword_target}"
+    }
+    
+    for label, dork_query in dorks.items():
+        with st.expander(label):
+            st.code(dork_query, language="text")
+            # Membuat URL Google Search otomatis
+            encoded_query = urllib.parse.quote_plus(dork_query)
+            google_url = f"https://www.google.com/search?q={encoded_query}"
+            st.markdown(f"[🚀 Jalankan Dorking Langsung di Google]({google_url})")
