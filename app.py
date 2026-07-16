@@ -8,15 +8,15 @@ import re
 
 # Konfigurasi Halaman Utama
 st.set_page_config(
-    page_title="OSINT Suite Ultimate Platform",
+    page_title="OSINT Suite Ultimate Pro Platform",
     page_icon="🔍",
     layout="wide"
 )
 
 st.title("🔍 Ultimate OSINT Web Application")
-st.write("iqbalmantam property (*Open Source Intelligence*).")
+st.write("iqbalmantam property (*Open Source Intelligence*) & Background Check.")
 
-# Pilihan Menu di Sidebar (Kini ada 9 Fitur Utama!)
+# Pilihan Menu di Sidebar (Kini ada 11 Fitur Utama!)
 menu = st.sidebar.selectbox(
     "Pilih Fitur OSINT:", 
     [
@@ -27,6 +27,8 @@ menu = st.sidebar.selectbox(
         "IP & Domain Geolocation",
         "Phone Number OSINT Helper",
         "Social Media Target Finder",
+        "Corporate Background Check",
+        "Legal & Court Record Finder",
         "Hacked Password Checker",
         "Hash Tools & Identifier"
     ]
@@ -37,7 +39,7 @@ menu = st.sidebar.selectbox(
 # -------------------------------------------------------------------------
 if menu == "Username Tracker (Deep)":
     st.header("👤 Social Media Username Tracker (Deep Hunt)")
-    st.write("Periksa keberadaan username target di berbagai macam ekosistem platform digital (Sosmed, Gaming, Musik, Portfolio).")
+    st.write("Periksa keberadaan username target di berbagai macam ekosistem platform digital.")
     
     username = st.text_input("Masukkan Username Target:", placeholder="misal: johndoe123")
     
@@ -45,7 +47,6 @@ if menu == "Username Tracker (Deep)":
         if username.strip() == "":
             st.warning("Silakan masukkan username terlebih dahulu.")
         else:
-            # Penambahan platform baru untuk Deep Hunt
             platforms = {
                 "GitHub": f"https://github.com/{username}",
                 "Twitter/X": f"https://x.com/{username}",
@@ -159,11 +160,11 @@ elif menu == "Email Breach Checker":
                         st.subheader("Sumber Kebocoran Terdeteksi:")
                         for breach in data.get("sources", []):
                             st.write(f"• **{breach}**")
-                        st.warning("Rekomendasi: Segera ganti kata sandi email target dan aktifkan Autentikasi Dua Faktor (2FA).")
+                        st.warning("Rekomendasi: Segera ganti kata sandi email target.")
                     else:
                         st.success("✅ Aman! Email ini tidak ditemukan dalam database kebocoran publik saat ini.")
                 else:
-                    st.error("Gagal terhubung ke database LeakCheck. Coba lagi nanti.")
+                    st.error("Gagal terhubung ke database LeakCheck.")
             except Exception as e:
                 st.error(f"Terjadi kesalahan koneksi: {str(e)}")
 
@@ -202,7 +203,7 @@ elif menu == "IP & Domain Geolocation":
     st.header("🌐 IP Address & Domain Geolocation Tracker")
     st.write("Lacak lokasi fisik, negara, ISP, dan koordinat peta dari alamat IP atau nama Domain.")
     
-    ip_input = st.text_input("Masukkan IP Address atau Domain (contoh: 8.8.8.8 atau google.com):", placeholder="8.8.8.8")
+    ip_input = st.text_input("Masukkan IP Address atau Domain (contoh: 8.8.8.8):", placeholder="8.8.8.8")
     
     if st.button("Lacak Lokasi IP"):
         if ip_input.strip() == "":
@@ -223,20 +224,15 @@ elif menu == "IP & Domain Geolocation":
                             st.write(f"🌐 **IP Target:** {data.get('query')}")
                             st.write(f"🏳️ **Negara:** {data.get('country')} ({data.get('countryCode')})")
                             st.write(f"🏙️ **Kota/Wilayah:** {data.get('city')}, {data.get('regionName')}")
-                            st.write(f"📮 **Kode Pos:** {data.get('zip')}")
-                            st.write(f"⏰ **Zona Waktu:** {data.get('timezone')}")
                         with col2:
                             st.markdown("### 🏢 Data Provider & Jaringan")
                             st.write(f"📡 **ISP:** {data.get('isp')}")
                             st.write(f"🏢 **Organisasi:** {data.get('org')}")
-                            st.write(f"🔀 **AS Number:** {data.get('as')}")
                             st.write(f"📍 **Koordinat:** Lat: {data.get('lat')}, Lon: {data.get('lon')}")
                         map_url = f"https://www.google.com/maps/search/?api=1&query={data.get('lat')},{data.get('lon')}"
                         st.markdown(f"[📍 Lihat Lokasi Persis di Google Maps]({map_url})")
                     else:
-                        st.error(f"Gagal melacak target. Alasan: {data.get('message', 'Format IP/Domain tidak valid.')}")
-                else:
-                    st.error("Gagal terhubung ke Server Geolocation API.")
+                        st.error(f"Gagal melacak target. Alasan: {data.get('message')}")
             except Exception as e:
                 st.error(f"Terjadi kesalahan: {str(e)}")
 
@@ -247,31 +243,25 @@ elif menu == "Phone Number OSINT Helper":
     st.header("📱 Phone Number OSINT Assistant")
     st.write("Analisis format nomor telepon internasional dan dapatkan tautan investigasi langsung.")
     
-    phone_input = st.text_input("Masukkan Nomor Telepon Target (Gunakan Kode Negara, misal: 628123456xxx):", placeholder="628123456789")
+    phone_input = st.text_input("Masukkan Nomor Telepon Target (Gunakan Kode Negara):", placeholder="628123456789")
     
     if st.button("Analisis Nomor Telepon"):
         if phone_input.strip() == "" or not phone_input.isdigit():
-            st.warning("Silakan masukkan nomor telepon yang valid (hanya angka).")
+            st.warning("Silakan masukkan nomor telepon yang valid.")
         else:
             st.success("Analisis Awal Selesai!")
             negara_prediksi = "Tidak Diketahui"
             if phone_input.startswith("62"): negara_prediksi = "Indonesia 🇮🇩"
             elif phone_input.startswith("1"): negara_prediksi = "Amerika Serikat / Kanada 🇺🇸🇨🇦"
-            elif phone_input.startswith("60"): negara_prediksi = "Malaysia 🇲🇾"
-            elif phone_input.startswith("65"): negara_prediksi = "Singapura 🇸🇬"
                 
-            st.markdown(f"### 📊 Informasi Format Dasar")
             st.write(f"• **Nomor Input:** `+{phone_input}`")
             st.write(f"• **Prediksi Negara Asal:** {negara_prediksi}")
             
-            st.markdown("### 🔍 Tautan Investigasi Pihak Ketiga")
             truecaller_url = f"https://www.truecaller.com/search/global/{phone_input}"
             syncme_url = f"https://sync.me/search/?number={phone_input}"
-            whocalled_url = f"https://whocallsme.com/Phone-Number.aspx/{phone_input}"
             
             st.markdown(f"1. 👤 [Cari Nama Pemilik di **Truecaller Web**]({truecaller_url})")
             st.markdown(f"2. 🔄 [Cari Informasi Sosial Target di **Sync.ME**]({syncme_url})")
-            st.markdown(f"3. 📞 [Periksa Status Penipuan/Spam nomor di **WhoCallsMe**]({whocalled_url})")
 
 # -------------------------------------------------------------------------
 # FITUR 7: SOCIAL MEDIA TARGET FINDER
@@ -289,20 +279,67 @@ elif menu == "Social Media Target Finder":
         st.markdown(f"- 💼 [Cari Profil Profesional di **LinkedIn**](https://www.linkedin.com/search/results/all/?keywords={encoded_name})")
         st.markdown(f"- 📸 [Cari Akun/Tag di **Instagram via Google**](https://www.google.com/search?q=site:instagram.com+%22{encoded_name}%22)")
         st.markdown(f"- 🎥 [Cari Video/Kreator di **TikTok**](https://www.tiktok.com/search?q={encoded_name})")
-        st.markdown(f"- 🧵 [Cari Utas/Akun di **Twitter/X**](https://x.com/search?q={encoded_name}&f=user)")
 
 # -------------------------------------------------------------------------
-# FITUR 8: HACKED PASSWORD CHECKER
+# NEW FITUR 8: CORPORATE BACKGROUND CHECK (CEK PERUSAHAAN)
+# -------------------------------------------------------------------------
+elif menu == "Corporate Background Check":
+    st.header("🏢 Corporate & Business Registry Identifier")
+    st.write("Periksa apakah nama seseorang atau entitas bisnis terdaftar di registrasi perusahaan resmi (Kemenkumham/International Open Data).")
+    
+    target_name = st.text_input("Masukkan Nama Orang atau Nama Perusahaan Target:", placeholder="misal: PT Maju Jaya atau Nama Tokoh")
+    
+    if target_name:
+        encoded_corp = urllib.parse.quote_plus(target_name)
+        
+        st.markdown("### 📋 Jalur Pintas Pemeriksaan Korporasi (Legal Open Data):")
+        st.write("Gunakan tautan resmi di bawah untuk mencocokkan data kepemilikan saham atau status perusahaan:")
+        
+        # Link ke AHU (Kemenkumham RI), OpenCorporates (Terbesar di dunia), dan LEI (Legal Entity Identifier)
+        ahu_url = f"https://ahu.go.id/pencarian/profil-perusahaan?search={encoded_corp}"
+        opencorp_url = f"https://opencorporates.com/companies?q={encoded_corp}&utf8=%E2%9C%93"
+        gleif_url = f"https://www.gleif.org/en/lei-data/global-lei-index/lei-search#!query={encoded_corp}"
+        
+        st.markdown(f"- 🇮🇩 [Cari Legalitas & Profil PT di **AHU Online Kemenkumham RI**]({ahu_url})")
+        st.markdown(f"- 🌐 [Cari Afiliasi Direktur/Perusahaan Global di **OpenCorporates**]({opencorp_url})")
+        st.markdown(f"- 🏢 [Cari Entitas Keuangan Legal di **GLEIF Global LEI Index**]({gleif_url})")
+        st.markdown(f"- 🔍 [Pencarian Google Dork khusus dokumen Akta/Dokumen Perusahaan](https://www.google.com/search?q=%22{encoded_corp}%22+filetype:pdf+OR+inurl:sk-kemenkumham)")
+
+# -------------------------------------------------------------------------
+# NEW FITUR 9: LEGAL & COURT RECORD FINDER (CEK REKAM JEJAK HUKUM)
+# -------------------------------------------------------------------------
+elif menu == "Legal & Court Record Finder":
+    st.header("⚖️ Public Legal & Court Record Finder")
+    st.write("Lakukan background check terkait rekam jejak hukum publik, putusan pengadilan, sengketa, atau status perkara hukum seseorang.")
+    
+    legal_name = st.text_input("Masukkan Nama Lengkap Target (Gunakan tanda kutip untuk hasil presisi):", placeholder="misal: \"Nama Target\"")
+    
+    if legal_name:
+        encoded_legal = urllib.parse.quote_plus(legal_name)
+        
+        st.markdown("### ⚖️ Repositori Data Putusan Hukum Publik:")
+        st.write("Periksa keterlibatan kasus perdata/pidana target pada direktori keterbukaan informasi hukum berikut:")
+        
+        # Link Direktori Putusan Mahkamah Agung RI dan Mahkamah Konstitusi
+        ma_url = f"https://putusan3.mahkamahagung.go.id/search.html?q={encoded_legal}"
+        mk_url = f"https://www.mkri.id/index.php?page=web.Pencarian&search={encoded_legal}"
+        
+        st.markdown(f"- 🏛️ [Cari Rekam Kasus/Putusan Hukum di **Direktori Putusan Mahkamah Agung RI**]({ma_url})")
+        st.markdown(f"- 📜 [Cari Sengketa/Perkara Konstitusi di **Mahkamah Konstitusi RI**]({mk_url})")
+        st.markdown(f"- 📑 [Cari Dokumen Hukum Terbuka via Google Dorking](https://www.google.com/search?q=%22{encoded_legal}%22+filetype:pdf+AND+(%22putusan%22+OR+%22terdakwa%22+OR+%22gugatan%22))")
+
+# -------------------------------------------------------------------------
+# FITUR 10: HACKED PASSWORD CHECKER
 # -------------------------------------------------------------------------
 elif menu == "Hacked Password Checker":
     st.header("🦹‍♂️ Hacked Password Checker")
-    st.write("Periksa secara anonim apakah sebuah password pernah bocor dalam kasus peretasan besar di internet.")
+    st.write("Periksa secara anonim apakah sebuah password pernah bocor dalam kasus peretasan besar.")
     
-    pwd_input = st.text_input("Masukkan Kata Sandi yang Ingin Dicek:", type="password", placeholder="Ketik kata sandi di sini...")
+    pwd_input = st.text_input("Masukkan Kata Sandi yang Ingin Dicek:", type="password")
     
     if st.button("Cek Keamanan Password"):
         if pwd_input.strip() == "":
-            st.warning("Silakan masukkan kata sandi terlebih dahulu.")
+            st.warning("Silakan masukkan kata sandi.")
         else:
             sha1_hash = hashlib.sha1(pwd_input.encode('utf-8')).hexdigest().upper()
             first5 = sha1_hash[:5]
@@ -320,71 +357,43 @@ elif menu == "Hacked Password Checker":
                             break
                     
                     if match_count > 0:
-                        st.error(f"🚨 BERBAHAYA! Kata sandi ini telah bocor sebanyak **{match_count:,} kali** di internet!")
-                        st.warning("JANGAN GUNAKAN kata sandi ini untuk akun apa pun.")
+                        st.error(f"🚨 BERBAHAYA! Kata sandi ini telah bocor sebanyak **{match_count:,} kali**!")
                     else:
-                        st.success("✅ Aman! Kata sandi ini belum pernah ditemukan dalam database peretasan publik.")
-                else:
-                    st.error("Gagal terhubung ke database Pwned Passwords.")
+                        st.success("✅ Aman! Kata sandi ini belum pernah ditemukan dalam database peretasan.")
             except Exception as e:
                 st.error(f"Terjadi kesalahan koneksi: {str(e)}")
 
 # -------------------------------------------------------------------------
-# NEW FITUR 9: HASH TOOLS & IDENTIFIER
+# FITUR 11: HASH TOOLS & IDENTIFIER
 # -------------------------------------------------------------------------
 elif menu == "Hash Tools & Identifier":
     st.header("🔐 Cryptographic Hash Generator & Identifier")
-    st.write("Alat bantu forensik digital untuk mengidentifikasi jenis teks hash tidak dikenal atau membuat hash baru dari sebuah teks.")
+    st.write("Alat bantu forensik digital untuk mengidentifikasi jenis teks hash tidak dikenal.")
     
     tab1, tab2 = st.tabs(["🕵️ Identifikasi Hash", "⚙️ Generator Hash"])
     
     with tab1:
-        st.subheader("Identifikasi Teks Hash Misterius")
-        hash_input = st.text_input("Tempel Teks Hash di Sini (Contoh: md5, sha1, sha256):").strip()
-        
+        hash_input = st.text_input("Tempel Teks Hash di Sini:").strip()
         if st.button("Identifikasi Jenis Hash"):
-            if not hash_input:
-                st.warning("Masukkan string hash terlebih dahulu.")
+            if not hash_input: st.warning("Masukkan string hash.")
             else:
-                # Menghitung panjang string dan karakter yang digunakan (Regex hex check)
                 is_hex = re.match(r"^[a-fA-F0-9]+$", hash_input)
                 length = len(hash_input)
-                
-                if not is_hex:
-                    st.error("Teks input bukan format Hexadecimal (Hash tidak valid).")
+                if not is_hex: st.error("Teks input bukan format Hexadecimal.")
                 else:
-                    st.info(f"Panjang Karakter: **{length} karakter**")
-                    if length == 32:
-                        st.success("🎯 Kemungkinan Besar: **MD5**")
-                    elif length == 40:
-                        st.success("🎯 Kemungkinan Besar: **SHA-1**")
-                    elif length == 64:
-                        st.success("🎯 Kemungkinan Besar: **SHA-256**")
-                    elif length == 96:
-                        st.success("🎯 Kemungkinan Besar: **SHA-384**")
-                    elif length == 128:
-                        st.success("🎯 Kemungkinan Besar: **SHA-512**")
-                    else:
-                        st.warning("Jenis hash tidak umum atau tidak dikenali oleh pemindai dasar ini.")
+                    if length == 32: st.success("🎯 Kemungkinan Besar: **MD5**")
+                    elif length == 40: st.success("🎯 Kemungkinan Besar: **SHA-1**")
+                    elif length == 64: st.success("🎯 Kemungkinan Besar: **SHA-256**")
+                    else: st.warning("Jenis hash tidak umum.")
                         
     with tab2:
-        st.subheader("Buat Hash Baru dari Teks Polos")
         plain_text = st.text_area("Masukkan Teks Biasa:")
-        algo = st.selectbox("Pilih Algoritma Hash:", ["MD5", "SHA-1", "SHA-256", "SHA-512"])
-        
+        algo = st.selectbox("Pilih Algoritma Hash:", ["MD5", "SHA-1", "SHA-256"])
         if st.button("Generate Hash"):
-            if not plain_text:
-                st.warning("Silakan masukkan teks terlebih dahulu.")
+            if not plain_text: st.warning("Masukkan teks.")
             else:
                 encoded_text = plain_text.encode('utf-8')
-                if algo == "MD5":
-                    result = hashlib.md5(encoded_text).hexdigest()
-                elif algo == "SHA-1":
-                    result = hashlib.sha1(encoded_text).hexdigest()
-                elif algo == "SHA-256":
-                    result = hashlib.sha256(encoded_text).hexdigest()
-                elif algo == "SHA-512":
-                    result = hashlib.sha512(encoded_text).hexdigest()
-                
-                st.markdown(f"**Hasil {algo} Hash:**")
+                if algo == "MD5": result = hashlib.md5(encoded_text).hexdigest()
+                elif algo == "SHA-1": result = hashlib.sha1(encoded_text).hexdigest()
+                elif algo == "SHA-256": result = hashlib.sha256(encoded_text).hexdigest()
                 st.code(result, language="text")
