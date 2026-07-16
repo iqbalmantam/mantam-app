@@ -11,7 +11,7 @@ st.set_page_config(
 )
 
 st.title("🔍 Mini OSINT Web Application")
-st.write("Aplikasi web untuk analisis intelijen sumber terbuka (*Open Source Intelligence*).")
+st.write("iqbalmantam property (*Open Source Intelligence*).")
 
 # Pilihan Menu di Sidebar
 menu = st.sidebar.selectbox("Pilih Fitur OSINT:", ["Username Tracker", "Image EXIF Extractor"])
