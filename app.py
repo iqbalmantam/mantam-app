@@ -96,36 +96,50 @@ st.sidebar.markdown("---")
 
 
 def clean_master_dataframe(df):
-    """Fungsi pembantu untuk membersihkan kolom terduplikat dan menyatukan versi penulisan header."""
+    """Memastikan struktur kolom bersih dan tidak ada kolom duplikat."""
     if df is None or df.empty:
         return df
 
-    # Bersihkan nama kolom dari spasi berlebih
+    # 1. Trim spasi pada nama kolom
     df.columns = [str(c).strip() for c in df.columns]
 
-    # Jika KEDUA KOLOM ADA (Terakhir Diperbaharui & Terakhir Diperbarui), buang salah satu
-    if "Terakhir Diperbaharui" in df.columns and "Terakhir Diperbarui" in df.columns:
-        df = df.drop(columns=["Terakhir Diperbaharui"])
-    elif "Terakhir Diperbaharui" in df.columns:
-        df.rename(columns={"Terakhir Diperbaharui": "Terakhir Diperbarui"}, inplace=True)
+    # 2. Samakan nama "Terakhir Diperbaharui" (versi Google Sheet Anda) menjadi "Terakhir Diperbarui"
+    if "Terakhir Diperbaharui" in df.columns:
+        df = df.rename(columns={"Terakhir Diperbaharui": "Terakhir Diperbarui"})
 
     if "Jabatan" in df.columns and "Posisi" not in df.columns:
-        df.rename(columns={"Jabatan": "Posisi"}, inplace=True)
+        df = df.rename(columns={"Jabatan": "Posisi"})
 
-    # Hapus kolom dengan nama sama persis jika ada
-    df = df.loc[:, ~df.columns.duplicated()]
+    # 3. Kunci urutan kolom resmi agar tidak duplikat
+    expected_cols = [
+        "ID",
+        "Nama Lengkap",
+        "Posisi",
+        "Cost Center",
+        "Tanggal Bergabung",
+        "Akhir Kontrak",
+        "Tanggal Resign",
+        "Site",
+        "Status",
+        "Terakhir Diperbarui",
+    ]
 
-    # Validasi kolom wajib
-    if "ID" in df.columns:
-        df["ID"] = df["ID"].astype(str).str.strip().str.upper()
-    if "Site" not in df.columns:
-        df["Site"] = ""
-    if "Status" not in df.columns:
-        df["Status"] = "Aktif"
-    if "Tanggal Resign" not in df.columns:
-        df["Tanggal Resign"] = "-"
-    if "Terakhir Diperbarui" not in df.columns:
-        df["Terakhir Diperbarui"] = str(date.today())
+    for col in expected_cols:
+        if col not in df.columns:
+            if col == "Status":
+                df[col] = "Aktif"
+            elif col == "Tanggal Resign":
+                df[col] = "-"
+            elif col == "Terakhir Diperbarui":
+                df[col] = str(date.today())
+            else:
+                df[col] = ""
+
+    # Ambil HANYA kolom resmi sesuai urutan (membuang kolom duplikat otomatis)
+    df = df[expected_cols].copy()
+
+    # Formating ID
+    df["ID"] = df["ID"].astype(str).str.strip().str.upper()
 
     return df
 
@@ -159,7 +173,12 @@ def load_data():
 def load_snapshot_data():
     try:
         df_snap = conn.read(worksheet="Snapshot_Bulanan", ttl=0)
-        return clean_master_dataframe(df_snap)
+        if df_snap is not None and not df_snap.empty:
+            df_snap.columns = [str(c).strip() for c in df_snap.columns]
+            if "Terakhir Diperbaharui" in df_snap.columns:
+                df_snap.rename(columns={"Terakhir Diperbaharui": "Terakhir Diperbarui"}, inplace=True)
+            df_snap = df_snap.loc[:, ~df_snap.columns.duplicated()]
+        return df_snap if df_snap is not None else pd.DataFrame()
     except Exception:
         return pd.DataFrame()
 
@@ -334,6 +353,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
     st.title("Employee Database Manager")
     st.caption("Created by iqbalmantam")
 
+    # Pastikan data di-clean saat ditampilkan
     df_master_current = clean_master_dataframe(st.session_state.employees)
     st.session_state.employees = df_master_current
 
