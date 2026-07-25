@@ -96,21 +96,23 @@ st.sidebar.markdown("---")
 
 
 def clean_master_dataframe(df):
-    """Memastikan struktur kolom bersih dan tidak ada kolom duplikat."""
+    """Memastikan struktur kolom bersih dan seragam menggunakan 'Terakhir Diperbaharui'."""
     if df is None or df.empty:
         return df
 
     # 1. Trim spasi pada nama kolom
     df.columns = [str(c).strip() for c in df.columns]
 
-    # 2. Samakan nama "Terakhir Diperbaharui" (versi Google Sheet Anda) menjadi "Terakhir Diperbarui"
-    if "Terakhir Diperbaharui" in df.columns:
-        df = df.rename(columns={"Terakhir Diperbaharui": "Terakhir Diperbarui"})
+    # 2. Samakan jika ada variasi nama "Terakhir Diperbarui" ke "Terakhir Diperbaharui"
+    if "Terakhir Diperbarui" in df.columns and "Terakhir Diperbaharui" in df.columns:
+        df = df.drop(columns=["Terakhir Diperbarui"])
+    elif "Terakhir Diperbarui" in df.columns:
+        df = df.rename(columns={"Terakhir Diperbarui": "Terakhir Diperbaharui"})
 
     if "Jabatan" in df.columns and "Posisi" not in df.columns:
         df = df.rename(columns={"Jabatan": "Posisi"})
 
-    # 3. Kunci urutan kolom resmi agar tidak duplikat
+    # 3. Kunci urutan kolom resmi sesuai tabel Google Sheet Anda
     expected_cols = [
         "ID",
         "Nama Lengkap",
@@ -121,7 +123,7 @@ def clean_master_dataframe(df):
         "Tanggal Resign",
         "Site",
         "Status",
-        "Terakhir Diperbarui",
+        "Terakhir Diperbaharui",
     ]
 
     for col in expected_cols:
@@ -130,15 +132,15 @@ def clean_master_dataframe(df):
                 df[col] = "Aktif"
             elif col == "Tanggal Resign":
                 df[col] = "-"
-            elif col == "Terakhir Diperbarui":
+            elif col == "Terakhir Diperbaharui":
                 df[col] = str(date.today())
             else:
                 df[col] = ""
 
-    # Ambil HANYA kolom resmi sesuai urutan (membuang kolom duplikat otomatis)
+    # Ambil HANYA kolom resmi sesuai urutan
     df = df[expected_cols].copy()
 
-    # Formating ID
+    # Formatting ID
     df["ID"] = df["ID"].astype(str).str.strip().str.upper()
 
     return df
@@ -165,7 +167,7 @@ def load_data():
                     "Tanggal Resign",
                     "Site",
                     "Status",
-                    "Terakhir Diperbarui",
+                    "Terakhir Diperbaharui",
                 ]
             )
 
@@ -175,8 +177,8 @@ def load_snapshot_data():
         df_snap = conn.read(worksheet="Snapshot_Bulanan", ttl=0)
         if df_snap is not None and not df_snap.empty:
             df_snap.columns = [str(c).strip() for c in df_snap.columns]
-            if "Terakhir Diperbaharui" in df_snap.columns:
-                df_snap.rename(columns={"Terakhir Diperbaharui": "Terakhir Diperbarui"}, inplace=True)
+            if "Terakhir Diperbarui" in df_snap.columns:
+                df_snap.rename(columns={"Terakhir Diperbarui": "Terakhir Diperbaharui"}, inplace=True)
             df_snap = df_snap.loc[:, ~df_snap.columns.duplicated()]
         return df_snap if df_snap is not None else pd.DataFrame()
     except Exception:
@@ -237,7 +239,7 @@ def generate_pdf(df):
         pdf.cell(col_widths[6], 6, str(row.get("Tanggal Resign", "-")), border=1, align="C")
         pdf.cell(col_widths[7], 6, str(row.get("Site", "")), border=1, align="C")
         pdf.cell(col_widths[8], 6, str(row.get("Status", "Aktif")), border=1, align="C")
-        pdf.cell(col_widths[9], 6, str(row.get("Terakhir Diperbarui", "")), border=1, align="C")
+        pdf.cell(col_widths[9], 6, str(row.get("Terakhir Diperbaharui", "")), border=1, align="C")
         pdf.ln()
 
     out = pdf.output()
@@ -293,7 +295,7 @@ def generate_excel_formatted(df):
                 "Akhir Kontrak",
                 "Tanggal Resign",
                 "Status",
-                "Terakhir Diperbarui",
+                "Terakhir Diperbaharui",
             ]:
                 cell.alignment = Alignment(horizontal="center", vertical="center")
 
@@ -353,7 +355,6 @@ if menu_pilihan == "👥 Master Data Karyawan":
     st.title("Employee Database Manager")
     st.caption("Created by iqbalmantam")
 
-    # Pastikan data di-clean saat ditampilkan
     df_master_current = clean_master_dataframe(st.session_state.employees)
     st.session_state.employees = df_master_current
 
@@ -428,7 +429,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                             "Tanggal Resign": new_resign_date,
                             "Site": new_site.strip(),
                             "Status": new_status,
-                            "Terakhir Diperbarui": str(date.today()),
+                            "Terakhir Diperbaharui": str(date.today()),
                         }
                         updated_df = pd.concat([st.session_state.employees, pd.DataFrame([new_row])], ignore_index=True)
                         save_data(updated_df)
@@ -445,7 +446,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                     try:
                         df_import = pd.read_csv(uploaded_file, dtype={"ID": str})
                         df_import = clean_master_dataframe(df_import)
-                        df_import["Terakhir Diperbarui"] = str(date.today())
+                        df_import["Terakhir Diperbaharui"] = str(date.today())
 
                         existing_ids = set(
                             str(x).strip().upper() for x in st.session_state.employees["ID"].values
@@ -493,7 +494,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                                     "Tanggal Resign": resign_d,
                                     "Site": site_val,
                                     "Status": status_val,
-                                    "Terakhir Diperbarui": str(date.today()),
+                                    "Terakhir Diperbaharui": str(date.today()),
                                 })
                                 existing_ids.add(emp_id)
 
@@ -530,7 +531,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                         "Tanggal Resign",
                         "Site",
                         "Status",
-                        "Terakhir Diperbarui",
+                        "Terakhir Diperbaharui",
                         "Tanggal Snapshot",
                     ]
 
@@ -823,7 +824,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                             "Tanggal Resign",
                             "Site",
                             "Status",
-                            "Terakhir Diperbarui",
+                            "Terakhir Diperbaharui",
                         ],
                     ] = [
                         e_name.strip().title(),
