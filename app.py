@@ -1,9 +1,11 @@
 import math
 import time
+from datetime import datetime
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from streamlit_gsheets import GSheetsConnection
 
 # ==========================================
 # 1. CONFIG & SESSION STATE INITIALIZATION
@@ -26,6 +28,8 @@ if "start_time" not in st.session_state:
     st.session_state.start_time = None
 if "candidate_info" not in st.session_state:
     st.session_state.candidate_info = {}
+if "saved_to_gsheets" not in st.session_state:
+    st.session_state.saved_to_gsheets = False
 
 # Session State untuk Tes Kognitif (IRT / CAT)
 if "theta" not in st.session_state:
@@ -166,14 +170,14 @@ SJT_BANK = [
 ]
 
 # ==========================================
-# 3. HELPER FUNCTIONS & IRT ALGORITHM
+# 3. HELPER FUNCTIONS & ALGORITMA
 # ==========================================
 
 
 def irt_3pl(theta, a, b, c):
     """Probabilitas IRT 3-Parameter Logistic dengan safeguard numerik"""
     val = -a * (theta - b)
-    val = max(min(val, 50), -50)  # Menghindari Overflow math.exp
+    val = max(min(val, 50), -50)  # Safeguard math.exp overflow
     return c + (1 - c) / (1 + math.exp(val))
 
 
@@ -182,9 +186,7 @@ def update_theta_mle(theta_current, history):
     if not history:
         return theta_current
 
-    num = 0.0
-    den = 0.0
-    eps = 1e-9  # Menjaga pembagian dari nol
+    num, den, eps = 0.0, 0.0, 1e-9
 
     for item in history:
         a, b, c = item["a"], item["b"], item["c"]
@@ -204,7 +206,7 @@ def update_theta_mle(theta_current, history):
         return theta_current
 
     delta = num / den
-    delta = max(min(delta, 0.75), -0.75)  # Dibatasi agar penyesuaian mulus
+    delta = max(min(delta, 0.75), -0.75)
     new_theta = theta_current + delta
     return max(min(new_theta, 3.0), -3.0)
 
@@ -245,6 +247,43 @@ def render_timer():
     st.sidebar.metric("⏱️ Sisa Waktu Ujian", timer_str)
     if remaining < 300:
         st.sidebar.warning("⚠️ Waktu tersisa kurang dari 5 menit!")
+
+
+def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
+    """Kirim Hasil Otomatis ke Google Sheets"""
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        existing_data = conn.read(ttl=0)
+
+        new_row = pd.DataFrame(
+            [
+                {
+                    "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "Nama": cand.get("name", ""),
+                    "Email": cand.get("email", ""),
+                    "Posisi": cand.get("position", ""),
+                    "Pengalaman": cand.get("exp", 0),
+                    "Skor_Theta": round(theta, 2),
+                    "Estimasi_IQ": iq_equivalent,
+                    "Status_Kesesuaian": fit_status,
+                    "Leadership": comp_scores.get("Leadership", 0),
+                    "Stress_Tolerance": comp_scores.get("Stress_Tolerance", 0),
+                    "Execution": comp_scores.get("Execution", 0),
+                    "Integrity": comp_scores.get("Integrity", 0),
+                    "Strategic_Thinking": comp_scores.get(
+                        "Strategic_Thinking", 0
+                    ),
+                }
+            ]
+        )
+
+        updated_df = pd.concat([existing_data, new_row], ignore_index=True)
+        conn.update(data=updated_df)
+        st.session_state.saved_to_gsheets = True
+        return True
+    except Exception as e:
+        st.error(f"Gagal menyimpan ke Google Sheets: {e}")
+        return False
 
 
 # ==========================================
@@ -376,37 +415,12 @@ elif st.session_state.test_started and not st.session_state.test_finished:
 
 # --- PHASE 3: REPORT & DASHBOARD HASIL ---
 elif st.session_state.test_finished:
-    st.balloons()
-    st.success("✅ Asesmen Berhasil Diselesaikan dan Disimpan ke Sistem!")
-
     cand = st.session_state.candidate_info
-    st.header(f"Laporan Asesmen Psikologi: {cand.get('name', 'Kandidat')}")
-    st.caption(
-        f"Posisi: {cand.get('position')} | Pengalaman: {cand.get('exp')} Tahun | Email: {cand.get('email')}"
-    )
 
-    st.markdown("---")
-
-    col1, col2, col3 = st.columns(3)
-
+    # Hitung Skor Akhir
     iq_equivalent = int(100 + (st.session_state.theta * 15))
     iq_equivalent = max(70, min(145, iq_equivalent))
-
-    with col1:
-        st.metric(
-            "Skor Kognitif Laten (Theta Z-Score)",
-            f"{st.session_state.theta:+.2f}",
-        )
-    with col2:
-        st.metric("Estimasi Kapasitas Intelektual", f"IQ ~{iq_equivalent}")
-    with col3:
-        fit_status = "Tinggi (Recommended)" if st.session_state.theta > 0.5 else "Moderat"
-        st.metric("Kesesuaian Kualifikasi", fit_status)
-
-    st.markdown("---")
-
-    # RADAR CHART COMPETENCIES
-    st.subheader("📊 Profil Kompetensi Perilaku (SJT Assessment)")
+    fit_status = "Tinggi (Recommended)" if st.session_state.theta > 0.5 else "Moderat"
 
     comp_scores = {
         "Leadership": 0,
@@ -415,15 +429,51 @@ elif st.session_state.test_finished:
         "Integrity": 0,
         "Strategic_Thinking": 0,
     }
-
     for resp in st.session_state.sjt_responses.values():
         for k, v in resp.items():
             comp_scores[k] = comp_scores.get(k, 0) + v
 
+    # Simpan Otomatis ke Google Sheets
+    if not st.session_state.saved_to_gsheets:
+        save_to_google_sheets(
+            cand,
+            st.session_state.theta,
+            iq_equivalent,
+            fit_status,
+            comp_scores,
+        )
+
+    st.balloons()
+    st.success(
+        "✅ Asesmen Berhasil Diselesaikan! Data telah disimpan otomatis ke Google Sheets."
+    )
+
+    st.header(f"Laporan Asesmen Psikologi: {cand.get('name', 'Kandidat')}")
+    st.caption(
+        f"Posisi: {cand.get('position')} | Pengalaman: {cand.get('exp')} Tahun | Email: {cand.get('email')}"
+    )
+
+    st.markdown("---")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric(
+            "Skor Kognitif Laten (Theta Z-Score)",
+            f"{st.session_state.theta:+.2f}",
+        )
+    with col2:
+        st.metric("Estimasi Kapasitas Intelektual", f"IQ ~{iq_equivalent}")
+    with col3:
+        st.metric("Kesesuaian Kualifikasi", fit_status)
+
+    st.markdown("---")
+
+    # RADAR CHART COMPETENCIES
+    st.subheader("📊 Profil Kompetensi Perilaku (SJT Assessment)")
+
     categories = list(comp_scores.keys())
     values = list(comp_scores.values())
 
-    # Close loop radar chart
     categories.append(categories[0])
     values.append(values[0])
 
