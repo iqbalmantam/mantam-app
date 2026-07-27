@@ -721,7 +721,7 @@ elif st.session_state.test_finished:
 
     st.header(f"Laporan Asesmen Psikologi: {cand.get('name', 'Kandidat')}")
     st.caption(
-        f"Posisi: {cand.get('position')} | Pengalaman: {cand.get('exp')} Tahun | Email: {cand.get('email')}"
+        f"Posisi: {cand.get('position', '-')} | Pengalaman: {cand.get('exp', 0)} Tahun | Email: {cand.get('email', '-')}"
     )
 
     st.markdown("---")
@@ -745,14 +745,17 @@ elif st.session_state.test_finished:
     categories = list(comp_scores.keys())
     values = list(comp_scores.values())
 
+    # Tutup lingkaran radar chart
     categories.append(categories[0])
     values.append(values[0])
+
+    max_val = max(max(values), 10)  # Dynamic range agar chart tidak pipih
 
     fig = go.Figure(
         data=go.Scatterpolar(r=values, theta=categories, fill="toself")
     )
     fig.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[0, 40])),
+        polar=dict(radialaxis=dict(visible=True, range=[0, max_val])),
         showlegend=False,
     )
 
