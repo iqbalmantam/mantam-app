@@ -17,27 +17,19 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# --- CUSTOM CSS: HILANGKAN HEADER & ANTI COPY-PASTE ---
+# Custom CSS: Sembunyikan Header & Anti Copy-Paste
 st.markdown(
     """
     <style>
-    /* 1. Sembunyikan Streamlit Header & Footer */
-    header[data-testid="stHeader"] {
-        visibility: hidden;
-        height: 0%;
-    }
+    header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    
-    /* 2. Anti Copy-Paste: Disable Text Selection */
     body, div, p, span, h1, h2, h3, label {
         -webkit-user-select: none;
         -moz-user-select: none;
         -ms-user-select: none;
         user-select: none;
     }
-    
-    /* Allow typing in inputs */
     input, textarea {
         -webkit-user-select: text !important;
         -moz-user-select: text !important;
@@ -50,8 +42,8 @@ st.markdown(
 )
 
 TOTAL_TIME_SECONDS = 30 * 60  # Durasi: 30 Menit
+MAX_COG_QUESTIONS = 15        # Target jumlah soal kognitif
 
-# Inisialisasi Session State Utama
 if "test_started" not in st.session_state:
     st.session_state.test_started = False
 if "test_finished" not in st.session_state:
@@ -63,9 +55,8 @@ if "candidate_info" not in st.session_state:
 if "saved_to_gsheets" not in st.session_state:
     st.session_state.saved_to_gsheets = False
 
-# Session State untuk Tes Kognitif (IRT / CAT)
 if "theta" not in st.session_state:
-    st.session_state.theta = 0.0  # Ability level awal (Z-score)
+    st.session_state.theta = 0.0
 if "cog_step" not in st.session_state:
     st.session_state.cog_step = 0
 if "cog_history" not in st.session_state:
@@ -73,37 +64,26 @@ if "cog_history" not in st.session_state:
 if "used_cog_ids" not in st.session_state:
     st.session_state.used_cog_ids = set()
 
-# Session State untuk Tes SJT
 if "sjt_responses" not in st.session_state:
     st.session_state.sjt_responses = {}
 
 # ==========================================
-# 2. BANK SOAL & PARAMETER PSIKOMETRI (23 SOAL)
+# 2. BANK SOAL & PARAMETER PSIKOMETRI
 # ==========================================
 
 COGNITIVE_BANK = [
-    # --- EASY / BASELINE (b < -0.5) ---
     {
         "id": "C01",
         "category": "Verbal Reasoning",
-        "a": 1.2,
-        "b": -1.5,
-        "c": 0.25,
+        "a": 1.2, "b": -1.5, "c": 0.25,
         "q": "OPOSIT : BERLAWANAN = SINKRON : ...",
-        "opts": [
-            "A. Serentak / Sejalan",
-            "B. Terpisah",
-            "C. Berurutan",
-            "D. Acak",
-        ],
+        "opts": ["A. Serentak / Sejalan", "B. Terpisah", "C. Berurutan", "D. Acak"],
         "ans": "A. Serentak / Sejalan",
     },
     {
         "id": "C02",
         "category": "Numerical Reasoning",
-        "a": 1.5,
-        "b": -0.8,
-        "c": 0.25,
+        "a": 1.5, "b": -0.8, "c": 0.25,
         "q": "Satu tim efisiensi memotong konsumsi bahan bakar dari 800 liter menjadi 680 liter. Berapa persentase efisiensi energi yang dicapai?",
         "opts": ["A. 12%", "B. 15%", "C. 17.5%", "D. 20%"],
         "ans": "B. 15%",
@@ -111,35 +91,23 @@ COGNITIVE_BANK = [
     {
         "id": "C03",
         "category": "Verbal Analogy",
-        "a": 1.1,
-        "b": -1.1,
-        "c": 0.25,
+        "a": 1.1, "b": -1.1, "c": 0.25,
         "q": "INFLASI : MATA UANG = DEPRESIASI : ...",
-        "opts": [
-            "A. Saham",
-            "B. Aset Tetap",
-            "C. Hutang",
-            "D. Obligasi",
-        ],
+        "opts": ["A. Saham", "B. Aset Tetap", "C. Hutang", "D. Obligasi"],
         "ans": "B. Aset Tetap",
     },
     {
         "id": "C04",
         "category": "Numerical Series",
-        "a": 1.3,
-        "b": -0.6,
-        "c": 0.25,
+        "a": 1.3, "b": -0.6, "c": 0.25,
         "q": "Deret Angka: 3, 6, 12, 24, 48, [ ? ]. Angka berikutnya adalah:",
         "opts": ["A. 72", "B. 84", "C. 96", "D. 108"],
         "ans": "C. 96",
     },
-    # --- MEDIUM (-0.5 <= b <= 0.5) ---
     {
         "id": "C05",
         "category": "Abstract Logic",
-        "a": 1.8,
-        "b": 0.0,
-        "c": 0.25,
+        "a": 1.8, "b": 0.0, "c": 0.25,
         "q": "Semua analis data menguasai Python. Sebagian manajer produk tidak menguasai Python. Maka:",
         "opts": [
             "A. Semua manajer produk adalah analis data",
@@ -152,24 +120,15 @@ COGNITIVE_BANK = [
     {
         "id": "C06",
         "category": "Numerical Reasoning",
-        "a": 1.6,
-        "b": 0.2,
-        "c": 0.25,
+        "a": 1.6, "b": 0.2, "c": 0.25,
         "q": "Perusahaan A dan B memiliki total anggaran Rp 450 Juta. Jika anggaran B adalah 25% lebih besar dari anggaran A, berapa besarnya anggaran A?",
-        "opts": [
-            "A. Rp 200 Juta",
-            "B. Rp 225 Juta",
-            "C. Rp 250 Juta",
-            "D. Rp 275 Juta",
-        ],
+        "opts": ["A. Rp 200 Juta", "B. Rp 225 Juta", "C. Rp 250 Juta", "D. Rp 275 Juta"],
         "ans": "A. Rp 200 Juta",
     },
     {
         "id": "C07",
         "category": "Verbal Logic",
-        "a": 1.4,
-        "b": -0.2,
-        "c": 0.25,
+        "a": 1.4, "b": -0.2, "c": 0.25,
         "q": "Jika semua proyek X bernilai tinggi dan sebagian proyek X berisiko tinggi, maka kesimpulan yang paling tepat adalah:",
         "opts": [
             "A. Semua proyek berisiko tinggi bernilai tinggi",
@@ -182,20 +141,15 @@ COGNITIVE_BANK = [
     {
         "id": "C08",
         "category": "Data Interpretation",
-        "a": 1.7,
-        "b": 0.4,
-        "c": 0.20,
+        "a": 1.7, "b": 0.4, "c": 0.20,
         "q": "Penjualan Kuartal 1 adalah Rp 100 Juta. Jika naik 10% di Q2 dan naik lagi 20% di Q3, berapa total akumulasi nilai penjualan di Q3?",
         "opts": ["A. Rp 130 Juta", "B. Rp 132 Juta", "C. Rp 135 Juta", "D. Rp 140 Juta"],
         "ans": "B. Rp 132 Juta",
     },
-    # --- HARD (0.5 < b <= 1.5) ---
     {
         "id": "C09",
         "category": "Numerical Matrix",
-        "a": 2.0,
-        "b": 0.8,
-        "c": 0.20,
+        "a": 2.0, "b": 0.8, "c": 0.20,
         "q": "Analisis deret kuadrat bilangan prima: 4, 9, 25, 49, 121, [ ? ]. Berapakah nilai variabel berikutnya?",
         "opts": ["A. 144", "B. 169", "C. 196", "D. 225"],
         "ans": "B. 169",
@@ -203,9 +157,7 @@ COGNITIVE_BANK = [
     {
         "id": "C10",
         "category": "Complex Logic",
-        "a": 1.9,
-        "b": 1.0,
-        "c": 0.20,
+        "a": 1.9, "b": 1.0, "c": 0.20,
         "q": "Karyawan A lebih senior dari B tetapi junior dari C. D lebih senior dari C. Siapa yang paling junior di antara keempatnya?",
         "opts": ["A. Karyawan A", "B. Karyawan B", "C. Karyawan C", "D. Karyawan D"],
         "ans": "B. Karyawan B",
@@ -213,9 +165,7 @@ COGNITIVE_BANK = [
     {
         "id": "C11",
         "category": "Numerical Optimization",
-        "a": 2.1,
-        "b": 1.2,
-        "c": 0.20,
+        "a": 2.1, "b": 1.2, "c": 0.20,
         "q": "Mesin A memproduksi 100 unit/jam dan Mesin B memproduksi 150 unit/jam. Jika keduanya digunakan bersamaan untuk membuat 1.000 unit dan Mesin B baru dinyalakan 1 jam setelah Mesin A beroperasi, berapa jam total waktu kerja Mesin A?",
         "opts": ["A. 3.6 Jam", "B. 4.0 Jam", "C. 4.6 Jam", "D. 5.0 Jam"],
         "ans": "C. 4.6 Jam",
@@ -223,40 +173,23 @@ COGNITIVE_BANK = [
     {
         "id": "C12",
         "category": "Complex Deductive",
-        "a": 2.2,
-        "b": 1.5,
-        "c": 0.20,
+        "a": 2.2, "b": 1.5, "c": 0.20,
         "q": "Sistem X hanya aktif jika Y aktif dan Z non-aktif. Jika Z aktif saat Y aktif, maka kondisi Sistem X adalah:",
-        "opts": [
-            "A. Selalu Aktif",
-            "B. Mutlak Non-Aktif",
-            "C. Berjalan sebagian",
-            "D. Tergantung variabel Y",
-        ],
+        "opts": ["A. Selalu Aktif", "B. Mutlak Non-Aktif", "C. Berjalan sebagian", "D. Tergantung variabel Y"],
         "ans": "B. Mutlak Non-Aktif",
     },
-    # --- ADVANCED / HIGH THETA (b > 1.5) ---
     {
         "id": "C13",
         "category": "Data Interpretation",
-        "a": 2.1,
-        "b": 1.8,
-        "c": 0.20,
+        "a": 2.1, "b": 1.8, "c": 0.20,
         "q": "Jika ROI total Proyek A adalah 18% dalam 3 tahun dan Proyek B adalah 12% dalam 2 tahun (compounded annually), proyek mana yang secara efektif menghasilkan laju pertumbuhan tahunan (CAGR) lebih tinggi?",
-        "opts": [
-            "A. Proyek A",
-            "B. Proyek B",
-            "C. Keduanya Setara",
-            "D. Tidak cukup data",
-        ],
+        "opts": ["A. Proyek A", "B. Proyek B", "C. Keduanya Setara", "D. Tidak cukup data"],
         "ans": "B. Proyek B",
     },
     {
         "id": "C14",
         "category": "Advanced Analytics",
-        "a": 2.3,
-        "b": 2.0,
-        "c": 0.20,
+        "a": 2.3, "b": 2.0, "c": 0.20,
         "q": "Sebuah eksperimen A/B testing menunjukkan tingkat konversi Kontrol (A) sebesar 4% dan Variasi (B) sebesar 5%. Berapa peningkatan relatif (relative uplift) dari variasi B dibanding A?",
         "opts": ["A. 1%", "B. 20%", "C. 25%", "D. 125%"],
         "ans": "C. 25%",
@@ -264,16 +197,9 @@ COGNITIVE_BANK = [
     {
         "id": "C15",
         "category": "Strategic Logic",
-        "a": 2.4,
-        "b": 2.2,
-        "c": 0.20,
+        "a": 2.4, "b": 2.2, "c": 0.20,
         "q": "Jika implikasi (p ➔ q) bernilai Salah, dan disjungsi (q ∨ r) bernilai Benar, manakah urutan nilai kebenaran dari p, q, dan r yang benar secara berurutan?",
-        "opts": [
-            "A. Benar, Salah, Benar",
-            "B. Benar, Benar, Salah",
-            "C. Salah, Salah, Benar",
-            "D. Benar, Salah, Salah",
-        ],
+        "opts": ["A. Benar, Salah, Benar", "B. Benar, Benar, Salah", "C. Salah, Salah, Benar", "D. Benar, Salah, Salah"],
         "ans": "A. Benar, Salah, Benar",
     },
 ]
@@ -421,21 +347,16 @@ SJT_BANK = [
 # 3. HELPER FUNCTIONS & ALGORITMA
 # ==========================================
 
-
 def irt_3pl(theta, a, b, c):
-    """Probabilitas IRT 3-Parameter Logistic dengan safeguard numerik"""
     val = -a * (theta - b)
-    val = max(min(val, 50), -50)  # Safeguard math.exp overflow
+    val = max(min(val, 50), -50)
     return c + (1 - c) / (1 + math.exp(val))
 
-
 def update_theta_mle(theta_current, history):
-    """Pembaruan Estimasi Theta (MLE) yang stabil secara numerik"""
     if not history:
         return theta_current
 
     num, den, eps = 0.0, 0.0, 1e-9
-
     for item in history:
         a, b, c = item["a"], item["b"], item["c"]
         u = item["response"]
@@ -458,12 +379,9 @@ def update_theta_mle(theta_current, history):
     new_theta = theta_current + delta
     return max(min(new_theta, 3.0), -3.0)
 
-
 def get_next_question(theta_current, used_ids):
-    """Cari soal dengan Maximum Item Information pada Theta saat ini"""
     best_q = None
     max_info = -1.0
-
     for q in COGNITIVE_BANK:
         if q["id"] in used_ids:
             continue
@@ -476,21 +394,17 @@ def get_next_question(theta_current, used_ids):
         if info > max_info:
             max_info = info
             best_q = q
-
     return best_q
 
-
+@st.fragment(run_every="1s")
 def render_timer():
-    """Timer Mundur 30 Menit yang Tampil di Atas Halaman Utama"""
+    if not st.session_state.start_time:
+        return
     elapsed = time.time() - st.session_state.start_time
     remaining = max(0, TOTAL_TIME_SECONDS - int(elapsed))
 
     mins, secs = divmod(remaining, 60)
     timer_str = f"{mins:02d}:{secs:02d}"
-
-    if remaining <= 0 and not st.session_state.test_finished:
-        st.session_state.test_finished = True
-        st.rerun()
 
     bg_color = "#FFEBEB" if remaining < 300 else "#EBF3FF"
     text_color = "#D32F2F" if remaining < 300 else "#0F52BA"
@@ -514,9 +428,7 @@ def render_timer():
         unsafe_allow_html=True,
     )
 
-
 def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
-    """Kirim Hasil Otomatis ke Google Sheets dengan Safe Error Handling"""
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         existing_data = conn.read(ttl=0)
@@ -525,9 +437,9 @@ def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
             [
                 {
                     "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "Nama": cand.get("name", ""),
-                    "Email": cand.get("email", ""),
-                    "Posisi": cand.get("position", ""),
+                    "Nama": cand.get("name", "N/A"),
+                    "Email": cand.get("email", "N/A"),
+                    "Posisi": cand.get("position", "N/A"),
                     "Pengalaman": cand.get("exp", 0),
                     "Skor_Theta": round(theta, 2),
                     "Estimasi_IQ": iq_equivalent,
@@ -536,9 +448,7 @@ def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
                     "Stress_Tolerance": comp_scores.get("Stress_Tolerance", 0),
                     "Execution": comp_scores.get("Execution", 0),
                     "Integrity": comp_scores.get("Integrity", 0),
-                    "Strategic_Thinking": comp_scores.get(
-                        "Strategic_Thinking", 0
-                    ),
+                    "Strategic_Thinking": comp_scores.get("Strategic_Thinking", 0),
                 }
             ]
         )
@@ -553,15 +463,19 @@ def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
         )
         return False
 
-
 # ==========================================
 # 4. USER INTERFACE FLOW
 # ==========================================
 
+# Guard jika waktu 30 menit sudah habis
+if st.session_state.test_started and not st.session_state.test_finished:
+    elapsed_time = time.time() - st.session_state.start_time
+    if elapsed_time >= TOTAL_TIME_SECONDS:
+        st.session_state.test_finished = True
+        st.rerun()
+
 st.title("🛡️ System Asesmen General Kandidat")
-st.caption(
-    "Standardized Adaptive Testing & Behavioral Competency Evaluation System"
-)
+st.caption("Standardized Adaptive Testing & Behavioral Competency Evaluation System")
 
 # --- PHASE 1: REGISTRASI ---
 if not st.session_state.test_started and not st.session_state.test_finished:
@@ -610,47 +524,50 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 elif st.session_state.test_started and not st.session_state.test_finished:
     render_timer()
 
-    total_expected_steps = len(COGNITIVE_BANK) + len(SJT_BANK)
-    current_step = st.session_state.cog_step + len(
-        st.session_state.sjt_responses
-    )
+    total_expected_steps = MAX_COG_QUESTIONS + len(SJT_BANK)
+    current_step = st.session_state.cog_step + len(st.session_state.sjt_responses)
     st.progress(min(current_step / total_expected_steps, 1.0))
 
-    next_q = get_next_question(
-        st.session_state.theta, st.session_state.used_cog_ids
-    )
-
     # BAGIAN A: TES KOGNITIF ADAPTIF
-    if next_q and st.session_state.cog_step < len(COGNITIVE_BANK):
-        st.markdown(
-            f"### Bagian 1: Penalaran Kognitif (Soal {st.session_state.cog_step + 1} dari {len(COGNITIVE_BANK)})"
-        )
-        st.caption(f"Kategori Domain: **{next_q['category']}**")
-
-        with st.container():
-            st.markdown(f"**{next_q['q']}**")
-            user_ans = st.radio(
-                "Pilih Jawaban Anda:",
-                next_q["opts"],
-                key=f"cog_radio_{next_q['id']}",
+    if st.session_state.cog_step < MAX_COG_QUESTIONS:
+        next_q = get_next_question(st.session_state.theta, st.session_state.used_cog_ids)
+        if next_q:
+            st.markdown(
+                f"### Bagian 1: Penalaran Kognitif (Soal {st.session_state.cog_step + 1} dari {MAX_COG_QUESTIONS})"
             )
+            st.caption(f"Kategori Domain: **{next_q['category']}**")
 
-            if st.button("Simpan & Lanjutkan »", key=f"btn_{next_q['id']}"):
-                is_correct = 1 if user_ans == next_q["ans"] else 0
-                st.session_state.used_cog_ids.add(next_q["id"])
-                st.session_state.cog_history.append(
-                    {
-                        "a": next_q["a"],
-                        "b": next_q["b"],
-                        "c": next_q["c"],
-                        "response": is_correct,
-                    }
+            with st.container():
+                st.markdown(f"**{next_q['q']}**")
+                user_ans = st.radio(
+                    "Pilih Jawaban Anda:",
+                    next_q["opts"],
+                    index=None,
+                    key=f"cog_radio_{next_q['id']}",
                 )
-                st.session_state.theta = update_theta_mle(
-                    st.session_state.theta, st.session_state.cog_history
-                )
-                st.session_state.cog_step += 1
-                st.rerun()
+
+                if st.button("Simpan & Lanjutkan »", key=f"btn_{next_q['id']}"):
+                    if user_ans is None:
+                        st.warning("⚠️ Harap pilih salah satu jawaban terlebih dahulu.")
+                    else:
+                        is_correct = 1 if user_ans == next_q["ans"] else 0
+                        st.session_state.used_cog_ids.add(next_q["id"])
+                        st.session_state.cog_history.append(
+                            {
+                                "a": next_q["a"],
+                                "b": next_q["b"],
+                                "c": next_q["c"],
+                                "response": is_correct,
+                            }
+                        )
+                        st.session_state.theta = update_theta_mle(
+                            st.session_state.theta, st.session_state.cog_history
+                        )
+                        st.session_state.cog_step += 1
+                        st.rerun()
+        else:
+            st.session_state.cog_step = MAX_COG_QUESTIONS
+            st.rerun()
 
     # BAGIAN B: SJT KEPRIBADIAN
     else:
@@ -667,17 +584,19 @@ elif st.session_state.test_started and not st.session_state.test_finished:
             sjt_choice = st.radio(
                 "Pilih Tindakan Efektif Menurut Anda:",
                 list(q_sjt["options"].values()),
+                index=None,
                 key=f"sjt_radio_{q_sjt['id']}",
             )
 
             if st.button("Kirim Jawaban SJT »", key=f"sjt_btn_{q_sjt['id']}"):
-                selected_key = [
-                    k for k, v in q_sjt["options"].items() if v == sjt_choice
-                ][0]
-                st.session_state.sjt_responses[q_sjt["id"]] = q_sjt["scores"][
-                    selected_key
-                ]
-                st.rerun()
+                if sjt_choice is None:
+                    st.warning("⚠️ Harap pilih salah satu opsi tindakan.")
+                else:
+                    selected_key = [
+                        k for k, v in q_sjt["options"].items() if v == sjt_choice
+                    ][0]
+                    st.session_state.sjt_responses[q_sjt["id"]] = q_sjt["scores"][selected_key]
+                    st.rerun()
         else:
             st.success(
                 "Seluruh bagian tes telah diisi. Klik tombol di bawah untuk mengevaluasi hasil."
@@ -690,7 +609,6 @@ elif st.session_state.test_started and not st.session_state.test_finished:
 elif st.session_state.test_finished:
     cand = st.session_state.candidate_info
 
-    # Hitung Skor Akhir
     iq_equivalent = int(100 + (st.session_state.theta * 15))
     iq_equivalent = max(70, min(145, iq_equivalent))
     fit_status = "Tinggi (Recommended)" if st.session_state.theta > 0.5 else "Moderat"
@@ -706,7 +624,6 @@ elif st.session_state.test_finished:
         for k, v in resp.items():
             comp_scores[k] = comp_scores.get(k, 0) + v
 
-    # Simpan Otomatis ke Google Sheets
     if not st.session_state.saved_to_gsheets:
         save_to_google_sheets(
             cand,
@@ -739,17 +656,15 @@ elif st.session_state.test_finished:
 
     st.markdown("---")
 
-    # RADAR CHART COMPETENCIES
     st.subheader("📊 Profil Kompetensi Perilaku (SJT Assessment)")
 
     categories = list(comp_scores.keys())
     values = list(comp_scores.values())
 
-    # Tutup lingkaran radar chart
     categories.append(categories[0])
     values.append(values[0])
 
-    max_val = max(max(values), 10)  # Dynamic range agar chart tidak pipih
+    max_val = max(max(values), 10)
 
     fig = go.Figure(
         data=go.Scatterpolar(r=values, theta=categories, fill="toself")
