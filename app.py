@@ -17,6 +17,38 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# --- CUSTOM CSS: HILANGKAN HEADER & ANTI COPY-PASTE ---
+st.markdown(
+    """
+    <style>
+    /* 1. Sembunyikan Streamlit Header (Share, GitHub, Star, Titik Tiga) & Footer */
+    header[data-testid="stHeader"] {
+        visibility: hidden;
+        height: 0%;
+    }
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* 2. Anti Copy-Paste: Disable Text Selection pada Seluruh Halaman Ujian */
+    body, div, p, span, h1, h2, h3, label {
+        -webkit-user-select: none; /* Safari */
+        -moz-user-select: none;    /* Firefox */
+        -ms-user-select: none;     /* IE10+/Edge */
+        user-select: none;         /* Standard */
+    }
+    
+    /* Pengecualian: Tetap izinkan mengetik di kolom Input Data Diri */
+    input, textarea {
+        -webkit-user-select: text !important;
+        -moz-user-select: text !important;
+        -ms-user-select: text !important;
+        user-select: text !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 TOTAL_TIME_SECONDS = 30 * 60  # Durasi: 30 Menit
 
 # Inisialisasi Session State Utama
@@ -244,7 +276,6 @@ def render_timer():
         st.session_state.test_finished = True
         st.rerun()
 
-    # Tampilan Timer Bar di Atas Layar Utama
     bg_color = "#FFEBEB" if remaining < 300 else "#EBF3FF"
     text_color = "#D32F2F" if remaining < 300 else "#0F52BA"
     border_color = "#FFCDD2" if remaining < 300 else "#BBDEFB"
@@ -359,7 +390,6 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 
 # --- PHASE 2: PENGERJAAN TES ---
 elif st.session_state.test_started and not st.session_state.test_finished:
-    # Render Timer di bagian paling atas pengerjaan
     render_timer()
 
     total_expected_steps = len(COGNITIVE_BANK) + len(SJT_BANK)
