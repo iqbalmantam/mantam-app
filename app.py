@@ -21,7 +21,7 @@ st.set_page_config(
 st.markdown(
     """
     <style>
-    /* 1. Sembunyikan Streamlit Header (Share, GitHub, Star, Titik Tiga) & Footer */
+    /* 1. Sembunyikan Streamlit Header & Footer */
     header[data-testid="stHeader"] {
         visibility: hidden;
         height: 0%;
@@ -29,15 +29,15 @@ st.markdown(
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* 2. Anti Copy-Paste: Disable Text Selection pada Seluruh Halaman Ujian */
+    /* 2. Anti Copy-Paste: Disable Text Selection */
     body, div, p, span, h1, h2, h3, label {
-        -webkit-user-select: none; /* Safari */
-        -moz-user-select: none;    /* Firefox */
-        -ms-user-select: none;     /* IE10+/Edge */
-        user-select: none;         /* Standard */
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+        user-select: none;
     }
     
-    /* Pengecualian: Tetap izinkan mengetik di kolom Input Data Diri */
+    /* Allow typing in inputs */
     input, textarea {
         -webkit-user-select: text !important;
         -moz-user-select: text !important;
@@ -88,7 +88,7 @@ COGNITIVE_BANK = [
         "a": 1.2,
         "b": -1.5,
         "c": 0.25,
-        "q": "OPOSETIT : BERLAWANAN = SINKRON : ...",
+        "q": "OPOSIT : BERLAWANAN = SINKRON : ...",
         "opts": [
             "A. Serentak / Sejalan",
             "B. Terpisah",
@@ -300,7 +300,7 @@ def render_timer():
 
 
 def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
-    """Kirim Hasil Otomatis ke Google Sheets"""
+    """Kirim Hasil Otomatis ke Google Sheets dengan Safe Error Handling"""
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         existing_data = conn.read(ttl=0)
@@ -332,7 +332,7 @@ def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
         st.session_state.saved_to_gsheets = True
         return True
     except Exception as e:
-        st.error(f"Gagal menyimpan ke Google Sheets: {e}")
+        st.warning(f"⚠️ Data tersimpan secara lokal, namun gagal sync ke Google Sheets: {e}")
         return False
 
 
@@ -459,6 +459,7 @@ elif st.session_state.test_started and not st.session_state.test_finished:
                 ]
                 st.rerun()
         else:
+            st.success("Seluruh bagian tes telah diisi. Klik tombol di bawah untuk mengevaluasi hasil.")
             if st.button("🟢 SELESAIKAN DAN EVALUASI HASIL"):
                 st.session_state.test_finished = True
                 st.rerun()
@@ -495,7 +496,7 @@ elif st.session_state.test_finished:
 
     st.balloons()
     st.success(
-        "✅ Asesmen Berhasil Diselesaikan! Data telah disimpan otomatis ke Google Sheets."
+        "✅ Asesmen Berhasil Diselesaikan! Data telah diverifikasi."
     )
 
     st.header(f"Laporan Asesmen Psikologi: {cand.get('name', 'Kandidat')}")
