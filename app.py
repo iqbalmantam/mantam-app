@@ -93,6 +93,7 @@ menu_pilihan = st.sidebar.radio(
     [
         "👥 Master Data Karyawan",
         "⏱️ Rekap Absensi (Timesheet)",
+        "💬 AI HR Assistant",
         "💳 Manpower Cost Manager",
     ],
 )
@@ -1621,7 +1622,16 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 
 
 # ==============================================================================
-# MODUL 3: MANPOWER COST MANAGER
+# MODUL 3: AI HR ASSISTANT
+# ==============================================================================
+if menu_pilihan == "💬 AI HR Assistant":
+    st.title("💬 AI HR Assistant")
+    st.caption("Fitur asisten cerdas untuk membantu analisis HR, pembuatan surat, dan konsultasi.")
+    st.info("💡 Asisten AI aktif. Tanyakan hal seputar analisis HR, regulasi, atau pembuatan draft dokumen.")
+
+
+# ==============================================================================
+# MODUL 4: MANPOWER COST MANAGER
 # ==============================================================================
 if menu_pilihan == "💳 Manpower Cost Manager":
 
@@ -1690,7 +1700,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
     df_mc = st.session_state.df_manpower_cost
 
-    # Form Admin untuk Upload / Input Data Biaya
+    # Form Admin untuk Upload / Import Data Biaya
     if is_admin:
         with st.expander("📥 **Upload / Import File Manpower Cost**", expanded=False):
             st.info("Upload file Excel/CSV Manpower Cost bulanan untuk disimpan ke Google Sheets.")
