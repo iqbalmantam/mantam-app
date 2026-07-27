@@ -93,9 +93,10 @@ menu_pilihan = st.sidebar.radio(
     [
         "👥 Master Data Karyawan",
         "⏱️ Rekap Absensi (Timesheet)",
-        "💬 AI HR Assistant",
         "💳 Manpower Cost Manager",
+        "💬 AI HR Assistant",
     ],
+    key="main_menu_navigation",
 )
 st.sidebar.markdown("---")
 
@@ -110,10 +111,8 @@ def clean_master_dataframe(df):
     if df is None or df.empty:
         return df
 
-    # 1. Trim spasi pada nama kolom
     df.columns = [str(c).strip() for c in df.columns]
 
-    # 2. Samakan jika ada variasi nama "Terakhir Diperbarui" ke "Terakhir Diperbaharui"
     if (
         "Terakhir Diperbarui" in df.columns
         and "Terakhir Diperbaharui" in df.columns
@@ -125,7 +124,6 @@ def clean_master_dataframe(df):
     if "Jabatan" in df.columns and "Posisi" not in df.columns:
         df = df.rename(columns={"Jabatan": "Posisi"})
 
-    # 3. Kunci urutan kolom resmi sesuai tabel Google Sheet Anda
     expected_cols = [
         "ID",
         "Nama Lengkap",
@@ -150,12 +148,8 @@ def clean_master_dataframe(df):
             else:
                 df[col] = ""
 
-    # Ambil HANYA kolom resmi sesuai urutan
     df = df[expected_cols].copy()
-
-    # Formatting ID
     df["ID"] = df["ID"].astype(str).str.strip().str.upper()
-
     return df
 
 
@@ -1478,7 +1472,6 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         if selected_site != "Semua Site":
             df_absen = df_absen[df_absen["Site"] == selected_site]
 
-        # --- BERSIHKAN STRING ID & NAMA DENGAN KETAT UNTUK MENCEGAH DUPLIKASI ---
         df_absen_clean = df_absen.copy()
         df_absen_clean["ID"] = (
             df_absen_clean["ID"].astype(str).str.strip().str.upper()
@@ -1490,13 +1483,11 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             .str.title()
         )
 
-        # Map ID ke Nama Terbaru agar 1 ID HANYA MENGGUNAKAN 1 NAMA
         id_to_name = (
             df_absen_clean.groupby("ID")["Nama Lengkap"].last().to_dict()
         )
         df_absen_clean["Nama Lengkap"] = df_absen_clean["ID"].map(id_to_name)
 
-        # Deduplikasi: Jika ada scan berulang pada hari yang sama, ambil scan terbaru
         df_absen_clean = df_absen_clean.sort_values(
             by=["ID", "Tanggal", "In"], ascending=[True, True, False]
         )
@@ -1504,7 +1495,6 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             subset=["ID", "Tanggal"], keep="first"
         ).copy()
 
-        # --- FUNGSI FORMAT JAM (MENGHILANGKAN DETIK HH:MM:SS -> HH:MM) ---
         def clean_time_format(val):
             if pd.isna(val) or str(val).strip().lower() in [
                 "none",
@@ -1522,12 +1512,10 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         df_absen_clean["In"] = df_absen_clean["In"].apply(clean_time_format)
         df_absen_clean["Out"] = df_absen_clean["Out"].apply(clean_time_format)
 
-        # Proses Format Tanggal
         df_absen_clean["Tgl_Format"] = pd.to_datetime(
             df_absen_clean["Tanggal"]
         ).dt.strftime("%d-%b\n%a")
 
-        # Format desimal shift (1.000000 -> 1)
         def clean_shift(val):
             if pd.isna(val) or str(val).strip().lower() in [
                 "none",
@@ -1546,7 +1534,6 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 
         df_absen_clean["Shift"] = df_absen_clean["Shift"].apply(clean_shift)
 
-        # Unpivot (Melt)
         df_melted = df_absen_clean.melt(
             id_vars=["ID", "Nama Lengkap", "Tgl_Format"],
             value_vars=["In", "Out", "Shift", "Status"],
@@ -1554,7 +1541,6 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             value_name="Value",
         )
 
-        # Pivot Matrix
         matrix_df = df_melted.pivot_table(
             index=["ID", "Nama Lengkap"],
             columns=["Tgl_Format", "SubHeader"],
@@ -1562,12 +1548,10 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             aggfunc="first",
         )
 
-        # Urutkan sub-header: In | Out | Shift | Status
         matrix_df = matrix_df.reindex(
             columns=["In", "Out", "Shift", "Status"], level=1
         )
 
-        # Ubah nilai kosong / NaN menjadi '-'
         matrix_df = matrix_df.fillna("-")
         matrix_df = matrix_df.map(
             lambda x: (
@@ -1575,7 +1559,6 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             )
         )
 
-        # Fungsi Styling Matrix
         def apply_matrix_styles(df):
             styles_df = pd.DataFrame("", index=df.index, columns=df.columns)
 
@@ -1607,7 +1590,6 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 
             return styles_df
 
-        # Terapkan styling
         styled_matrix = matrix_df.style.apply(
             apply_matrix_styles, axis=None
         ).set_properties(
@@ -1622,16 +1604,7 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
 
 
 # ==============================================================================
-# MODUL 3: AI HR ASSISTANT
-# ==============================================================================
-if menu_pilihan == "💬 AI HR Assistant":
-    st.title("💬 AI HR Assistant")
-    st.caption("Fitur asisten cerdas untuk membantu analisis HR, pembuatan surat, dan konsultasi.")
-    st.info("💡 Asisten AI aktif. Tanyakan hal seputar analisis HR, regulasi, atau pembuatan draft dokumen.")
-
-
-# ==============================================================================
-# MODUL 4: MANPOWER COST MANAGER
+# MODUL 3: MANPOWER COST MANAGER
 # ==============================================================================
 if menu_pilihan == "💳 Manpower Cost Manager":
 
@@ -1641,7 +1614,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         " Invoice Detail."
     )
 
-    # 35 Kolom Header Resmi Manpower Cost
     MANPOWER_COST_HEADERS = [
         "Month",
         "Invoice No",
@@ -1691,6 +1663,17 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 return df_mc[MANPOWER_COST_HEADERS]
             return pd.DataFrame(columns=MANPOWER_COST_HEADERS)
         except Exception:
+            try:
+                # Fallback ke Sheet1 / Sheet pertama jika nama worksheet berbeda
+                df_mc = conn.read(ttl=0)
+                if df_mc is not None and not df_mc.empty:
+                    df_mc.columns = [str(c).strip() for c in df_mc.columns]
+                    for col in MANPOWER_COST_HEADERS:
+                        if col not in df_mc.columns:
+                            df_mc[col] = ""
+                    return df_mc[MANPOWER_COST_HEADERS]
+            except Exception:
+                pass
             return pd.DataFrame(columns=MANPOWER_COST_HEADERS)
 
     if "df_manpower_cost" not in st.session_state or st.sidebar.button(
@@ -1700,7 +1683,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
     df_mc = st.session_state.df_manpower_cost
 
-    # Form Admin untuk Upload / Import Data Biaya
     if is_admin:
         with st.expander("📥 **Upload / Import File Manpower Cost**", expanded=False):
             st.info("Upload file Excel/CSV Manpower Cost bulanan untuk disimpan ke Google Sheets.")
@@ -1714,7 +1696,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     
                     df_mc_upload.columns = [str(c).strip() for c in df_mc_upload.columns]
                     
-                    # Lengkapi kolom yang kurang
                     for col in MANPOWER_COST_HEADERS:
                         if col not in df_mc_upload.columns:
                             df_mc_upload[col] = ""
@@ -1724,20 +1705,22 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                     df_mc_old = load_manpower_cost_data()
                     updated_mc = pd.concat([df_mc_old, df_mc_upload], ignore_index=True)
                     
-                    conn.update(worksheet="Manpower_Cost", data=updated_mc)
+                    try:
+                        conn.update(worksheet="Manpower_Cost", data=updated_mc)
+                    except Exception:
+                        conn.update(data=updated_mc)
+                        
                     st.session_state.df_manpower_cost = updated_mc
                     st.success(f"✅ Berhasil mengimpor {len(df_mc_upload)} baris data Manpower Cost!")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Gagal memproses file: {e}")
 
-    # Dashboard Metrics & Filter
     st.divider()
     if df_mc.empty:
         st.info("Sheet `Manpower_Cost` masih kosong. Silakan isi data secara manual atau upload file.")
         st.dataframe(pd.DataFrame(columns=MANPOWER_COST_HEADERS), use_container_width=True)
     else:
-        # Filter Halaman
         col_f1, col_f2 = st.columns(2)
         with col_f1:
             months = sorted([str(x) for x in df_mc["Month"].dropna().unique() if str(x).strip() != ""])
@@ -1746,14 +1729,12 @@ if menu_pilihan == "💳 Manpower Cost Manager":
             cost_centers = sorted([str(x) for x in df_mc["Cost Center"].dropna().unique() if str(x).strip() != ""])
             selected_cc = st.multiselect("Filter Cost Center:", options=cost_centers, default=cost_centers)
 
-        # Filter Data
         filtered_mc = df_mc.copy()
         if selected_months:
             filtered_mc = filtered_mc[filtered_mc["Month"].astype(str).isin(selected_months)]
         if selected_cc:
             filtered_mc = filtered_mc[filtered_mc["Cost Center"].astype(str).isin(selected_cc)]
 
-        # Kalkulasi Ringkasan KPI
         def to_num(series):
             return pd.to_numeric(series.astype(str).str.replace(",", "").str.replace("Rp", "").str.strip(), errors="coerce").fillna(0)
 
@@ -1771,10 +1752,18 @@ if menu_pilihan == "💳 Manpower Cost Manager":
         st.subheader("📋 Data Manpower Cost Matrix")
         st.dataframe(filtered_mc, use_container_width=True, height=450)
 
-        # Download / Export
         st.download_button(
             label="📊 Download Data Manpower Cost (CSV)",
             data=filtered_mc.to_csv(index=False).encode("utf-8-sig"),
             file_name=f"Manpower_Cost_Export_{date.today().strftime('%Y%m%d')}.csv",
             mime="text/csv",
         )
+
+
+# ==============================================================================
+# MODUL 4: AI HR ASSISTANT
+# ==============================================================================
+if menu_pilihan == "💬 AI HR Assistant":
+    st.title("💬 AI HR Assistant")
+    st.caption("Fitur asisten cerdas untuk membantu analisis HR, pembuatan surat, dan konsultasi.")
+    st.info("💡 Asisten AI aktif. Tanyakan hal seputar analisis HR, regulasi, atau pembuatan draft dokumen.")
