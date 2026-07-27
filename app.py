@@ -78,10 +78,11 @@ if "sjt_responses" not in st.session_state:
     st.session_state.sjt_responses = {}
 
 # ==========================================
-# 2. BANK SOAL & PARAMETER PSIKOMETRI
+# 2. BANK SOAL & PARAMETER PSIKOMETRI (23 SOAL)
 # ==========================================
 
 COGNITIVE_BANK = [
+    # --- EASY / BASELINE (b < -0.5) ---
     {
         "id": "C01",
         "category": "Verbal Reasoning",
@@ -109,6 +110,32 @@ COGNITIVE_BANK = [
     },
     {
         "id": "C03",
+        "category": "Verbal Analogy",
+        "a": 1.1,
+        "b": -1.1,
+        "c": 0.25,
+        "q": "INFLASI : MATA UANG = DEPRESIASI : ...",
+        "opts": [
+            "A. Saham",
+            "B. Aset Tetap",
+            "C. Hutang",
+            "D. Obligasi",
+        ],
+        "ans": "B. Aset Tetap",
+    },
+    {
+        "id": "C04",
+        "category": "Numerical Series",
+        "a": 1.3,
+        "b": -0.6,
+        "c": 0.25,
+        "q": "Deret Angka: 3, 6, 12, 24, 48, [ ? ]. Angka berikutnya adalah:",
+        "opts": ["A. 72", "B. 84", "C. 96", "D. 108"],
+        "ans": "C. 96",
+    },
+    # --- MEDIUM (-0.5 <= b <= 0.5) ---
+    {
+        "id": "C05",
         "category": "Abstract Logic",
         "a": 1.8,
         "b": 0.0,
@@ -123,20 +150,81 @@ COGNITIVE_BANK = [
         "ans": "B. Sebagian manajer produk bukan analis data",
     },
     {
-        "id": "C04",
+        "id": "C06",
+        "category": "Numerical Reasoning",
+        "a": 1.6,
+        "b": 0.2,
+        "c": 0.25,
+        "q": "Perusahaan A dan B memiliki total anggaran Rp 450 Juta. Jika anggaran B adalah 25% lebih besar dari anggaran A, berapa besarnya anggaran A?",
+        "opts": [
+            "A. Rp 200 Juta",
+            "B. Rp 225 Juta",
+            "C. Rp 250 Juta",
+            "D. Rp 275 Juta",
+        ],
+        "ans": "A. Rp 200 Juta",
+    },
+    {
+        "id": "C07",
+        "category": "Verbal Logic",
+        "a": 1.4,
+        "b": -0.2,
+        "c": 0.25,
+        "q": "Jika semua proyek X bernilai tinggi dan sebagian proyek X berisiko tinggi, maka kesimpulan yang paling tepat adalah:",
+        "opts": [
+            "A. Semua proyek berisiko tinggi bernilai tinggi",
+            "B. Sebagian proyek bernilai tinggi berisiko tinggi",
+            "C. Tidak ada proyek berisiko yang bernilai tinggi",
+            "D. Proyek bernilai rendah pasti tidak berisiko",
+        ],
+        "ans": "B. Sebagian proyek bernilai tinggi berisiko tinggi",
+    },
+    {
+        "id": "C08",
+        "category": "Data Interpretation",
+        "a": 1.7,
+        "b": 0.4,
+        "c": 0.20,
+        "q": "Penjualan Kuartal 1 adalah Rp 100 Juta. Jika naik 10% di Q2 dan naik lagi 20% di Q3, berapa total akumulasi nilai penjualan di Q3?",
+        "opts": ["A. Rp 130 Juta", "B. Rp 132 Juta", "C. Rp 135 Juta", "D. Rp 140 Juta"],
+        "ans": "B. Rp 132 Juta",
+    },
+    # --- HARD (0.5 < b <= 1.5) ---
+    {
+        "id": "C09",
         "category": "Numerical Matrix",
         "a": 2.0,
         "b": 0.8,
         "c": 0.20,
-        "q": "Analisis deret performa operasional: 4, 9, 25, 49, 121, [ ? ]. Berapakah nilai variabel berikutnya?",
+        "q": "Analisis deret kuadrat bilangan prima: 4, 9, 25, 49, 121, [ ? ]. Berapakah nilai variabel berikutnya?",
         "opts": ["A. 144", "B. 169", "C. 196", "D. 225"],
         "ans": "B. 169",
     },
     {
-        "id": "C05",
+        "id": "C10",
+        "category": "Complex Logic",
+        "a": 1.9,
+        "b": 1.0,
+        "c": 0.20,
+        "q": "Karyawan A lebih senior dari B tetapi junior dari C. D lebih senior dari C. Siapa yang paling junior di antara keempatnya?",
+        "opts": ["A. Karyawan A", "B. Karyawan B", "C. Karyawan C", "D. Karyawan D"],
+        "ans": "B. Karyawan B",
+    },
+    {
+        "id": "C11",
+        "category": "Numerical Optimization",
+        "a": 2.1,
+        "b": 1.2,
+        "c": 0.20,
+        "q": "Mesin A memproduksi 100 unit/jam dan Mesin B memproduksi 150 unit/jam. Jika keduanya digunakan bersamaan untuk membuat 1.000 unit dan Mesin B baru dinyalakan 1 jam setelah Mesin A beroperasi, berapa jam total waktu kerja Mesin A?",
+        "opts": ["A. 3.6 Jam", "B. 4.0 Jam", "C. 4.6 Jam", "D. 5.0 Jam"],
+        "ans": "C. 4.6 Jam",
+    },
+    {
+        "id": "C12",
         "category": "Complex Deductive",
         "a": 2.2,
-        "b": 1.6,
+        "b": 1.5,
         "c": 0.20,
         "q": "Sistem X hanya aktif jika Y aktif dan Z non-aktif. Jika Z aktif saat Y aktif, maka kondisi Sistem X adalah:",
         "opts": [
@@ -147,13 +235,14 @@ COGNITIVE_BANK = [
         ],
         "ans": "B. Mutlak Non-Aktif",
     },
+    # --- ADVANCED / HIGH THETA (b > 1.5) ---
     {
-        "id": "C06",
+        "id": "C13",
         "category": "Data Interpretation",
         "a": 2.1,
-        "b": 2.2,
+        "b": 1.8,
         "c": 0.20,
-        "q": "Jika ROI proyek A adalah 18% dalam 3 tahun dan proyek B adalah 12% dalam 2 tahun (compounded annually), proyek mana yang secara efektif menghasilkan laju pertumbuhan tahunan (CAGR) lebih tinggi?",
+        "q": "Jika ROI total Proyek A adalah 18% dalam 3 tahun dan Proyek B adalah 12% dalam 2 tahun (compounded annually), proyek mana yang secara efektif menghasilkan laju pertumbuhan tahunan (CAGR) lebih tinggi?",
         "opts": [
             "A. Proyek A",
             "B. Proyek B",
@@ -161,6 +250,31 @@ COGNITIVE_BANK = [
             "D. Tidak cukup data",
         ],
         "ans": "B. Proyek B",
+    },
+    {
+        "id": "C14",
+        "category": "Advanced Analytics",
+        "a": 2.3,
+        "b": 2.0,
+        "c": 0.20,
+        "q": "Sebuah eksperimen A/B testing menunjukkan tingkat konversi Kontrol (A) sebesar 4% dan Variasi (B) sebesar 5%. Berapa peningkatan relatif (relative uplift) dari variasi B dibanding A?",
+        "opts": ["A. 1%", "B. 20%", "C. 25%", "D. 125%"],
+        "ans": "C. 25%",
+    },
+    {
+        "id": "C15",
+        "category": "Strategic Logic",
+        "a": 2.4,
+        "b": 2.2,
+        "c": 0.20,
+        "q": "Jika implikasi (p ➔ q) bernilai Salah, dan disjungsi (q ∨ r) bernilai Benar, manakah urutan nilai kebenaran dari p, q, dan r yang benar secara berurutan?",
+        "opts": [
+            "A. Benar, Salah, Benar",
+            "B. Benar, Benar, Salah",
+            "C. Salah, Salah, Benar",
+            "D. Benar, Salah, Salah",
+        ],
+        "ans": "A. Benar, Salah, Benar",
     },
 ]
 
@@ -197,6 +311,108 @@ SJT_BANK = [
             "B": {"Leadership": 5, "Integrity": 5, "Strategic_Thinking": 5},
             "C": {"Leadership": 2, "Integrity": 3, "Strategic_Thinking": 2},
             "D": {"Leadership": 1, "Integrity": 1, "Strategic_Thinking": 2},
+        },
+    },
+    {
+        "id": "SJT03",
+        "dimension": "Team Development & Delegation",
+        "scenario": "Tim Anda gagal mencapai target kuartalan karena dua anggota senior menolak mengadopsi alur kerja digital baru. Bagaimana tindakan kepemimpinan Anda?",
+        "options": {
+            "A": "Memberikan peringatan tertulis tegas dan memindahkan mereka ke proyek non-strategis.",
+            "B": "Mengadakan sesi coaching personal untuk memahami hambatan mereka serta menetapkan periode transisi intensif.",
+            "C": "Mengambil alih seluruh pekerjaan teknis mereka agar target divisi tetap tercapai.",
+            "D": "Membiarkan mereka bekerja dengan cara lama selama kualitas hasil tetap terjaga.",
+        },
+        "scores": {
+            "A": {"Leadership": 2, "Execution": 3, "Stress_Tolerance": 2},
+            "B": {"Leadership": 5, "Execution": 4, "Stress_Tolerance": 4},
+            "C": {"Leadership": 1, "Execution": 2, "Stress_Tolerance": 1},
+            "D": {"Leadership": 1, "Execution": 1, "Stress_Tolerance": 1},
+        },
+    },
+    {
+        "id": "SJT04",
+        "dimension": "Conflict Resolution",
+        "scenario": "Dua manajer divisi di bawah kepemimpinan Anda berselisih sengit terkait alokasi sumber daya anggaran yang terbatas, hingga menghambat koordinasi tim.",
+        "options": {
+            "A": "Membuat keputusan sepihak membagi anggaran 50:50 tanpa negosiasi lebih lanjut.",
+            "B": "Memfasilitasi diskusi berbasis data indikator kinerja dan tujuan strategis perusahaan bersama kedua manajer.",
+            "C": "Menyerahkan keputusan pembagian anggaran kepada manajemen puncak (Direksi).",
+            "D": "Memberikan anggaran penuh kepada divisi yang mencetak pendapatan terbesar.",
+        },
+        "scores": {
+            "A": {"Leadership": 2, "Strategic_Thinking": 2, "Integrity": 3},
+            "B": {"Leadership": 5, "Strategic_Thinking": 5, "Integrity": 4},
+            "C": {"Leadership": 1, "Strategic_Thinking": 1, "Integrity": 2},
+            "D": {"Leadership": 2, "Strategic_Thinking": 3, "Integrity": 1},
+        },
+    },
+    {
+        "id": "SJT05",
+        "dimension": "Change Management",
+        "scenario": "Perusahaan memutuskan melakukan restrukturisasi organisasi. Banyak anggota tim Anda merasa cemas dan produktivitas menurun drastis.",
+        "options": {
+            "A": "Mengadakan balai warga (townhall) internal divisi secara transparan untuk menyampaikan visi perubahan dan membuka ruang tanya jawab.",
+            "B": "Meminta tim tetap fokus bekerja dan mengabaikan rumor hingga perubahan resmi berlaku.",
+            "C": "Menjanjikan kepada tim bahwa tidak akan ada pemutusan hubungan kerja agar mereka tenang.",
+            "D": "Fokus pada penyelesaian target pribadi dan menyerahkan komunikasi restrukturisasi kepada HRD.",
+        },
+        "scores": {
+            "A": {"Leadership": 5, "Stress_Tolerance": 5, "Strategic_Thinking": 4},
+            "B": {"Leadership": 2, "Stress_Tolerance": 2, "Strategic_Thinking": 2},
+            "C": {"Leadership": 1, "Stress_Tolerance": 1, "Integrity": 1},
+            "D": {"Leadership": 1, "Stress_Tolerance": 1, "Strategic_Thinking": 1},
+        },
+    },
+    {
+        "id": "SJT06",
+        "dimension": "Stakeholder Management",
+        "scenario": "Klien utama menuntut penambahan fitur baru di luar ruang lingkup proyek (scope creep) tanpa mau menambah biaya dan waktu pengerjaan.",
+        "options": {
+            "A": "Menolak mentah-mentah permintaan klien agar tim tidak mengalami burnout.",
+            "B": "Menerima semua permintaan klien demi menjaga hubungan baik walau tim harus lembur ekstrem.",
+            "C": "Melakukan negosiasi berbasis analisis dampak (impact analysis) dan menawarkan opsi penyesuaian prioritas fitur.",
+            "D": "Mengalihkan negosiasi sepenuhnya kepada tim legal perusahaan.",
+        },
+        "scores": {
+            "A": {"Leadership": 2, "Execution": 2, "Strategic_Thinking": 2},
+            "B": {"Leadership": 1, "Execution": 2, "Stress_Tolerance": 1},
+            "C": {"Leadership": 5, "Execution": 5, "Strategic_Thinking": 5},
+            "D": {"Leadership": 2, "Execution": 1, "Strategic_Thinking": 2},
+        },
+    },
+    {
+        "id": "SJT07",
+        "dimension": "Resource Optimization",
+        "scenario": "Di tengah beban kerja puncak, salah satu anggota kunci di tim Anda mendadak mengajukan izin sakit jangka panjang.",
+        "options": {
+            "A": "Meminta anggota tim lain mengambil alih seluruh tugas rekan yang sakit tanpa penyesuaian tenggat.",
+            "B": "Mengevaluasi ulang prioritas proyek, melakukan redistribusi tugas, dan mengajukan bantuan tenaga kontraktor temporary.",
+            "C": "Menunda seluruh tenggat waktu proyek sampai anggota kunci tersebut sembuh dan kembali bekerja.",
+            "D": "Mengerjakan sendiri seluruh sisa beban kerja anggota yang sakit.",
+        },
+        "scores": {
+            "A": {"Leadership": 2, "Stress_Tolerance": 1, "Execution": 3},
+            "B": {"Leadership": 5, "Stress_Tolerance": 5, "Execution": 5},
+            "C": {"Leadership": 1, "Stress_Tolerance": 2, "Execution": 1},
+            "D": {"Leadership": 2, "Stress_Tolerance": 2, "Execution": 2},
+        },
+    },
+    {
+        "id": "SJT08",
+        "dimension": "Ethics & Compliance",
+        "scenario": "Anda mendapati laporan keuangan proyek menunjukkan ketidaksesuaian kecil akibat kelalaian tim, namun belum terdeteksi oleh auditor eksternal.",
+        "options": {
+            "A": "Mengabaikannya selama nominalnya relatif kecil dan tidak menimbulkan kerugian besar.",
+            "B": "Melakukan koreksi internal secara transparan, melaporkan temuan ke bagian audit internal, serta menyusun tindakan pencegahan.",
+            "C": "Menutupi ketidaksesuaian tersebut dengan merevisi catatan keuangan kuartal berikutnya.",
+            "D": "Menimpakan kesalahan sepenuhnya kepada anggota tim yang lalai.",
+        },
+        "scores": {
+            "A": {"Leadership": 1, "Integrity": 1, "Strategic_Thinking": 1},
+            "B": {"Leadership": 5, "Integrity": 5, "Strategic_Thinking": 4},
+            "C": {"Leadership": 1, "Integrity": 1, "Strategic_Thinking": 1},
+            "D": {"Leadership": 1, "Integrity": 1, "Strategic_Thinking": 1},
         },
     },
 ]
@@ -332,7 +548,9 @@ def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
         st.session_state.saved_to_gsheets = True
         return True
     except Exception as e:
-        st.warning(f"⚠️ Data tersimpan secara lokal, namun gagal sync ke Google Sheets: {e}")
+        st.warning(
+            f"⚠️ Data tersimpan secara lokal, namun belum sinkron ke Google Sheets: {e}"
+        )
         return False
 
 
@@ -369,8 +587,8 @@ if not st.session_state.test_started and not st.session_state.test_finished:
         st.info(
             "📌 **Instruksi Ujian:**\n"
             "- Durasi total tes adalah **30 Menit**.\n"
-            "- Terdiri dari 2 Bagian: **Penalaran Kognitif Adaptif** dan **Skenario Kepemimpinan (SJT)**.\n"
-            "- Tingkat kesulitan soal disesuaikan secara otomatis berdasarkan performa Anda."
+            "- Terdiri dari 2 Bagian: **Penalaran Kognitif Adaptif (15 Soal)** dan **Skenario Kepemimpinan / SJT (8 Soal)**.\n"
+            "- Tingkat kesulitan soal disesuaikan secara otomatis berdasarkan jawaban Anda."
         )
 
         submit = st.form_submit_button("Mulai Sesi Asesmen")
@@ -405,7 +623,7 @@ elif st.session_state.test_started and not st.session_state.test_finished:
     # BAGIAN A: TES KOGNITIF ADAPTIF
     if next_q and st.session_state.cog_step < len(COGNITIVE_BANK):
         st.markdown(
-            f"### Bagian 1: Penalaran Kognitif (Soal {st.session_state.cog_step + 1})"
+            f"### Bagian 1: Penalaran Kognitif (Soal {st.session_state.cog_step + 1} dari {len(COGNITIVE_BANK)})"
         )
         st.caption(f"Kategori Domain: **{next_q['category']}**")
 
@@ -441,7 +659,9 @@ elif st.session_state.test_started and not st.session_state.test_finished:
 
         if sjt_index < len(SJT_BANK):
             q_sjt = SJT_BANK[sjt_index]
-            st.caption(f"Dimensi Kompetensi: **{q_sjt['dimension']}**")
+            st.caption(
+                f"Soal {sjt_index + 1} dari {len(SJT_BANK)} | Dimensi Kompetensi: **{q_sjt['dimension']}**"
+            )
             st.markdown(f"**{q_sjt['scenario']}**")
 
             sjt_choice = st.radio(
@@ -459,7 +679,9 @@ elif st.session_state.test_started and not st.session_state.test_finished:
                 ]
                 st.rerun()
         else:
-            st.success("Seluruh bagian tes telah diisi. Klik tombol di bawah untuk mengevaluasi hasil.")
+            st.success(
+                "Seluruh bagian tes telah diisi. Klik tombol di bawah untuk mengevaluasi hasil."
+            )
             if st.button("🟢 SELESAIKAN DAN EVALUASI HASIL"):
                 st.session_state.test_finished = True
                 st.rerun()
@@ -495,9 +717,7 @@ elif st.session_state.test_finished:
         )
 
     st.balloons()
-    st.success(
-        "✅ Asesmen Berhasil Diselesaikan! Data telah diverifikasi."
-    )
+    st.success("✅ Asesmen Berhasil Diselesaikan! Data telah diverifikasi.")
 
     st.header(f"Laporan Asesmen Psikologi: {cand.get('name', 'Kandidat')}")
     st.caption(
@@ -532,7 +752,7 @@ elif st.session_state.test_finished:
         data=go.Scatterpolar(r=values, theta=categories, fill="toself")
     )
     fig.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[0, 10])),
+        polar=dict(radialaxis=dict(visible=True, range=[0, 40])),
         showlegend=False,
     )
 
