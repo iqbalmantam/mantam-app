@@ -233,7 +233,7 @@ def get_next_question(theta_current, used_ids):
 
 
 def render_timer():
-    """Timer Mundur 30 Menit"""
+    """Timer Mundur 30 Menit yang Tampil di Atas Halaman Utama"""
     elapsed = time.time() - st.session_state.start_time
     remaining = max(0, TOTAL_TIME_SECONDS - int(elapsed))
 
@@ -244,9 +244,28 @@ def render_timer():
         st.session_state.test_finished = True
         st.rerun()
 
-    st.sidebar.metric("⏱️ Sisa Waktu Ujian", timer_str)
-    if remaining < 300:
-        st.sidebar.warning("⚠️ Waktu tersisa kurang dari 5 menit!")
+    # Tampilan Timer Bar di Atas Layar Utama
+    bg_color = "#FFEBEB" if remaining < 300 else "#EBF3FF"
+    text_color = "#D32F2F" if remaining < 300 else "#0F52BA"
+    border_color = "#FFCDD2" if remaining < 300 else "#BBDEFB"
+
+    st.markdown(
+        f"""
+        <div style="
+            background-color: {bg_color};
+            border: 2px solid {border_color};
+            padding: 12px 20px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 20px;
+        ">
+            <span style="font-size: 16px; font-weight: 600; color: #333333;">⏱️ SISA WAKTU UJIAN: </span>
+            <span style="font-size: 24px; font-weight: 800; color: {text_color}; font-family: monospace;">{timer_str}</span>
+            {"<span style='color: #D32F2F; font-weight: bold; margin-left: 10px;'>(⚠️ Kurang dari 5 menit!)</span>" if remaining < 300 else ""}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
@@ -340,6 +359,7 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 
 # --- PHASE 2: PENGERJAAN TES ---
 elif st.session_state.test_started and not st.session_state.test_finished:
+    # Render Timer di bagian paling atas pengerjaan
     render_timer()
 
     total_expected_steps = len(COGNITIVE_BANK) + len(SJT_BANK)
