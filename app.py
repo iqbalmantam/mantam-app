@@ -36,6 +36,19 @@ st.markdown(
         -ms-user-select: text !important;
         user-select: text !important;
     }
+    .custom-footer {
+        position: fixed;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        background-color: transparent;
+        color: #888888;
+        text-align: center;
+        padding: 10px;
+        font-size: 13px;
+        font-weight: 500;
+        z-index: 100;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -697,3 +710,7 @@ elif st.session_state.test_finished:
         st.caption(
             "Hasil tes ini bersifat rahasia dan dikalkulasi secara otomatis menggunakan pemodelan Item Response Theory (IRT)."
         )
+
+# --- FOOTER ---
+st.markdown("---")
+st.caption("Created by iqbalmantam")
