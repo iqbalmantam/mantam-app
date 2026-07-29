@@ -2340,7 +2340,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
 
 # ==============================================================================
-# MODUL 4: AI HR ASSISTANT (PINTAR & BACA SELURUH COST CENTER / PROJECT)
+# MODUL 4: AI HR ASSISTANT (PINTAR & BACA RINCIAN NAMA KARYAWAN PER CC/PROJECT)
 # ==============================================================================
 if menu_pilihan == "🤖 AI HR Assistant":
 
@@ -2413,7 +2413,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
         site_posisi_summary = ", ".join(grouped_items)
 
-    # 3. Ringkasan LENGKAP Seluruh Cost Center dari Master Karyawan (Tanpa dipotong)
+    # 3. Ringkasan Agregat Cost Center
     cc_summary = ""
     if not df_aktif.empty and "Cost Center" in df_aktif.columns:
         df_cc_clean = (
@@ -2428,23 +2428,28 @@ if menu_pilihan == "🤖 AI HR Assistant":
             f"{k}: {v} orang" for k, v in cc_counts.items() if k and k != "NAN"
         ])
 
-    # 4. Ringkasan Data Project dari Tab Manpower Cost (jika terisi)
-    mp_proj_summary = ""
-    df_mc_session = st.session_state.get("df_manpower_cost", pd.DataFrame())
-    if not df_mc_session.empty and "Project" in df_mc_session.columns:
-        proj_counts = (
-            df_mc_session["Project"]
-            .astype(str)
-            .str.strip()
-            .str.upper()
-            .value_counts()
+    # 4. RINCIAN NAMA KARYAWAN PER COST CENTER (DARI MASTER KARYAWAN)
+    cc_detail_names = ""
+    if not df_aktif.empty and "Cost Center" in df_aktif.columns and "Nama Lengkap" in df_aktif.columns:
+        df_cc_grouped = (
+            df_aktif.groupby("Cost Center")["Nama Lengkap"]
+            .apply(lambda names: ", ".join(names.dropna().astype(str)))
             .to_dict()
         )
-        mp_proj_summary = ", ".join([
-            f"{k}: {v} orang" for k, v in proj_counts.items() if k and k != "NAN"
-        ])
+        cc_detail_names = "\n".join([f"- Cost Center {k}: {v}" for k, v in df_cc_grouped.items() if str(k).strip() != ""])
 
-    # --- SYSTEM PROMPT LENGKAP BACA SELURUH COST CENTER & PROJECT ---
+    # 5. RINCIAN NAMA KARYAWAN PER PROJECT (DARI TAB MANPOWER COST)
+    mp_proj_detail_names = ""
+    df_mc_session = st.session_state.get("df_manpower_cost", pd.DataFrame())
+    if not df_mc_session.empty and "Project" in df_mc_session.columns and "Name" in df_mc_session.columns:
+        df_proj_grouped = (
+            df_mc_session.groupby("Project")["Name"]
+            .apply(lambda names: ", ".join(names.dropna().astype(str).unique()))
+            .to_dict()
+        )
+        mp_proj_detail_names = "\n".join([f"- Project {k}: {v}" for k, v in df_proj_grouped.items() if str(k).strip() != ""])
+
+    # --- SYSTEM PROMPT LENGKAP BACA JUMLAH DAN RINCIAN NAMA KARYAWAN ---
     system_prompt_context = f"""
     Anda adalah Asisten AI HR internal perusahaan yang cerdas, presisi, dan ramah.
     Anda memiliki akses langsung ke data realtime database berikut:
@@ -2458,16 +2463,20 @@ if menu_pilihan == "🤖 AI HR Assistant":
     🔥 RINCIAN POSISI PER SITE (LOKASI KERJA):
     {site_posisi_summary if site_posisi_summary else 'Belum ada data detail'}
 
-    💳 SELURUH COST CENTER / PROJECT (MASTER KARYAWAN):
+    💳 REKAPITULASI JUMLAH PER COST CENTER:
     {cc_summary if cc_summary else 'Belum ada data'}
 
-    📋 DATA PROJECT (TAB MANPOWER COST):
-    {mp_proj_summary if mp_proj_summary else 'Belum ada data Manpower Cost'}
+    📝 DAFTAR NAMA KARYAWAN PER COST CENTER (MASTER KARYAWAN):
+    {cc_detail_names if cc_detail_names else 'Belum ada data detail nama'}
+
+    📋 DAFTAR NAMA KARYAWAN PER PROJECT (MANPOWER COST):
+    {mp_proj_detail_names if mp_proj_detail_names else 'Belum ada data Manpower Cost'}
 
     PETUNJUK BALASAN:
-    1. Jika pengguna menanyakan jumlah orang pada Cost Center atau Project tertentu (misalnya FKS, VinFast, CJ Food, dsb.), cocokkan dengan daftar "SELURUH COST CENTER / PROJECT" di atas dan sebutkan jumlahnya secara akurat.
-    2. Jika pengguna menanyakan posisi spesifik di lokasi tertentu (misal: "posisi admin di JDC"), gunakan data "RINCIAN POSISI PER SITE".
-    3. Jawab selalu dengan bahasa Indonesia yang sopan, ramah, dan profesional.
+    1. Jika pengguna menanyakan jumlah orang pada Cost Center atau Project tertentu (misalnya FKS, VinFast, CJ Food, dsb.), sebutkan jumlahnya secara akurat.
+    2. Jika pengguna menanyakan DAFTAR NAMA atau "SIAPA SAJA" karyawan di Cost Center/Project tertentu (misalnya: "siapa saja yang di CJ", "siapa karyawan VinFast"), sebutkan daftar nama-nama karyawan yang terdaftar di atas.
+    3. Jika pengguna menanyakan promosi atau riwayat perubahan, jelaskan daftar nama karyawan yang saat ini tercatat berada di project/cost center tersebut.
+    4. Jawab selalu dengan bahasa Indonesia yang sopan, ramah, dan profesional.
     """
 
     # Inisialisasi Chat History
@@ -2477,8 +2486,8 @@ if menu_pilihan == "🤖 AI HR Assistant":
                 "role": "assistant",
                 "content": (
                     f"Halo! Saya AI HR Assistant. Saya telah membaca seluruh"
-                    f" database ({aktif_emp} Karyawan Aktif). Silakan tanyakan"
-                    f" jumlah karyawan berdasarkan Cost Center, Project, maupun Lokasi Site!"
+                    f" database ({aktif_emp} Karyawan Aktif beserta rincian namanya). Silakan tanyakan"
+                    f" jumlah maupun daftar nama karyawan berdasarkan Cost Center, Project, atau Lokasi Site!"
                 ),
             }
         ]
@@ -2490,7 +2499,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
     # Input User
     if prompt := st.chat_input(
-        "Tanyakan sesuatu (misal: 'berapa orang yang pegang project FKS?')..."
+        "Tanyakan sesuatu (misal: 'siapa saja karyawan yang ada di project CJ Food?')..."
     ):
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
