@@ -2337,27 +2337,36 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
 
 # ==============================================================================
-# MODUL 4: AI HR ASSISTANT (EKSPLISIT DAN PRESISI DENGAN DATA CSV RAW)
+# MODUL 4: AI HR ASSISTANT (SOLUSI RESET MEMORY & FORCE CONTEXT)
 # ==============================================================================
 if menu_pilihan == "🤖 AI HR Assistant":
 
     st.title("🤖 AI HR Assistant")
     st.caption(
-        "Asisten AI cerdas terintegrasi dengan Database Karyawan & Manpower Cost."
+        "Asisten AI cerdas terintegrasi langsung dengan Master Karyawan & Manpower"
+        " Cost."
     )
 
     groq_key = st.secrets.get("GROQ_API_KEY", "")
 
     if not groq_key:
         st.error(
-            "⚠️ API Key Groq belum dikonfigurasi di secrets.toml! Silakan"
-            " tambahkan GROQ_API_KEY."
+            "⚠️ API Key Groq belum dikonfigurasi di secrets.toml! Silakan tambahkan"
+            " GROQ_API_KEY."
         )
         st.stop()
 
     client = Groq(api_key=groq_key)
 
-    # --- SELALU PASTIKAN BACA DATA TERBARU DARI GOOGLE SHEETS / SESSION ---
+    # --- AKSI BERSIHKAN CHAT HISTORY ---
+    col_title, col_clear = st.columns([3, 1])
+    with col_clear:
+        if st.button("🧹 Reset Chat History", use_container_width=True):
+            st.session_state.chat_messages = []
+            st.success("Riwayat chat berhasil di-reset!")
+            st.rerun()
+
+    # --- AMBIL DATA REALTIME TERBARU ---
     df_emp = st.session_state.get("employees", pd.DataFrame())
     if df_emp.empty:
         df_emp = load_data()
@@ -2377,97 +2386,107 @@ if menu_pilihan == "🤖 AI HR Assistant":
             "Site",
             "Status",
         ]
-
         existing_cols = [c for c in target_cols if c in df_emp.columns]
         df_context = df_emp[existing_cols].fillna("-")
 
-        # Hitung Distribusi Isi Kolom Status
+        # Hitung Rekapitulasi Otomatis dari Pandas (Supaya AI 100% Akurat)
         if "Status" in df_context.columns:
-            status_counts = df_context["Status"].astype(str).str.strip().value_counts()
-            status_summary_str = "\n".join([f"- Status '{k}': {v} orang" for k, v in status_counts.items()])
+            status_counts = (
+                df_context["Status"].astype(str).str.strip().value_counts()
+            )
+            status_summary_str = "\n".join(
+                [f"- '{k}': {v} orang" for k, v in status_counts.items()]
+            )
 
-        # Konversi ke Format CSV murni agar tidak ada teks terpotong oleh format visual Pandas
         raw_csv_context = df_context.to_csv(index=False)
     else:
         raw_csv_context = "Data Karyawan Kosong."
 
-    # Dataset Tambahan Manpower Cost
+    # Dataset Manpower Cost
     df_mc_session = st.session_state.get("df_manpower_cost", pd.DataFrame())
     if df_mc_session.empty:
         df_mc_session = load_manpower_cost_data()
 
     mp_csv_context = ""
     if not df_mc_session.empty:
-        mc_cols = ["Name", "Cost Center Name", "Work Location", "Job Position", "Project", "Employment Status"]
-        mc_cols_exist = [c for c in mc_cols if c in df_mc_session.columns]
-        mp_csv_context = df_mc_session[mc_cols_exist].fillna("-").to_csv(index=False)
-
-    # --- SYSTEM PROMPT SANGAT TEGAS BACA ISI KOLOM STATUS ---
-    system_prompt_context = f"""
-    Anda adalah Asisten AI HR internal perusahaan yang cerdas, presisi, dan analitis.
-    
-    PERHATIAN UTAMA:
-    Di bawah ini adalah DATASET LENGKAP Master Karyawan dalam format CSV murni.
-    Setiap baris data memiliki kolom 'Status'. Nilai pada kolom 'Status' TIDAK HANYA 'Aktif' dan 'Resign', melainkan juga mencakup nilai lain seperti 'Promote to CJ', 'PKWT', dll.
-
-    📊 RINGKASAN REKAPITULASI DARI KOLOM STATUS SAAT INI:
-    {status_summary_str if status_summary_str else 'Tidak ada rekap status'}
-
-    📄 DATASET UTUH MASTER KARYAWAN (FORMAT CSV):
-    ```csv
-    {raw_csv_context}
-    ```
-
-    📄 DATASET MANPOWER COST / PROJECT (FORMAT CSV):
-    ```csv
-    {mp_csv_context if mp_csv_context else 'Tidak ada data'}
-    ```
-
-    PETUNJUK BALASAN PENTING:
-    1. Jika pengguna bertanya tentang status tertentu (misal: "berapa yang promote to cj?", "siapa saja yang statusnya promote to cj di kolom status?"), BACA LANGSUNG kolom 'Status' pada dataset CSV di atas.
-    2. JANGAN PERNAH MENJAWAB bahwa Anda tidak memiliki informasi tentang status tertentu jika status tersebut tercantum di dalam CSV.
-    3. Jika pengguna menanyakan tanggal (misal: "siapa yang kontraknya habis bulan ini?"), bandingkan tanggal pada kolom 'Akhir Kontrak' dengan tanggal hari ini ({date.today().strftime('%Y-%m-%d')}).
-    4. Berikan jawaban yang ramah, profesional, dan dalam bahasa Indonesia.
-    """
-
-    # Inisialisasi Chat History
-    if "chat_messages" not in st.session_state:
-        st.session_state.chat_messages = [
-            {
-                "role": "assistant",
-                "content": (
-                    f"Halo! Saya AI HR Assistant. Saya telah membaca seluruh"
-                    f" database ({len(df_emp)} Record Karyawan) secara lengkap mencakup ID, Posisi, Cost Center, Masa Kontrak, Site, hingga seluruh isi kolom Status. Silakan tanyakan apa saja!"
-                ),
-            }
+        mc_cols = [
+            "Name",
+            "Cost Center Name",
+            "Work Location",
+            "Job Position",
+            "Project",
+            "Employment Status",
         ]
+        mc_cols_exist = [c for c in mc_cols if c in df_mc_session.columns]
+        mp_csv_context = (
+            df_mc_session[mc_cols_exist].fillna("-").to_csv(index=False)
+        )
 
-    # Tampilkan riwayat chat
+    # Inisialisasi Pesan Awal jika kosong
+    if "chat_messages" not in st.session_state:
+        st.session_state.chat_messages = []
+
+    if len(st.session_state.chat_messages) == 0:
+        st.session_state.chat_messages.append({
+            "role": "assistant",
+            "content": (
+                f"Halo! Saya AI HR Assistant. Saya telah terhubung dengan"
+                f" {len(df_emp)} data karyawan. Ada yang bisa saya bantu?"
+            ),
+        })
+
+    # Tampilkan Riwayat Percakapan
     for message in st.session_state.chat_messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Input User
+    # --- PROCESS INPUT USER ---
     if prompt := st.chat_input(
-        "Tanyakan sesuatu (misal: 'Berapa yang promote to cj di kolom status?')..."
+        "Contoh: Berapa orang yang statusnya 'Promote to CJ'?"
     ):
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("Membaca CSV dan menganalisis kolom status..."):
+            with st.spinner("Menganalisis database karyawan..."):
                 try:
-                    api_messages = [
-                        {"role": "system", "content": system_prompt_context}
-                    ] + [
-                        {"role": m["role"], "content": m["content"]}
-                        for m in st.session_state.chat_messages
-                    ]
+                    # SYSTEM PROMPT DENGAN INSTRUKSI MUTLAK
+                    system_instruction = f"""
+                    Anda adalah Asisten HR cerdas & presisi.
+                    Hari ini: {date.today().strftime('%Y-%m-%d')}.
+
+                    📊 REKAPITULASI DARI KOLOM STATUS SAAT INI (DATA REALTIME PANDAS):
+                    {status_summary_str if status_summary_str else 'Tidak ada data'}
+
+                    📄 DATASET UTUH MASTER KARYAWAN (CSV):
+                    ```csv
+                    {raw_csv_context}
+                    ```
+
+                    📄 DATASET MANPOWER COST / PROJECT (CSV):
+                    ```csv
+                    {mp_csv_context if mp_csv_context else 'Tidak ada data'}
+                    ```
+
+                    ATURAN WAJIB:
+                    1. Jawablah pertanyaan user BERDASARKAN rekapitulasi dan dataset CSV di atas.
+                    2. Jika ada status seperti 'Promote to CJ', 'PKWT', 'Resign', atau 'Aktif', BACA LANGSUNG dari data CSV/rekap di atas. JANGAN MENJAWAB BAHWA ANDA TIDAK PUNYA DATANYA.
+                    3. Berikan jawaban dalam bahasa Indonesia yang ringkas, jelas, dan akurat.
+                    """
+
+                    # Menyusun Payload API Groq (System Prompt disisipkan di awal)
+                    messages_for_api = [{"role": "system", "content": system_instruction}]
+
+                    # Masukkan riwayat percakapan (tanpa System message lama agar tidak bentrok)
+                    for m in st.session_state.chat_messages:
+                        messages_for_api.append(
+                            {"role": m["role"], "content": m["content"]}
+                        )
 
                     completion = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
-                        messages=api_messages,
+                        messages=messages_for_api,
                         temperature=0.1,
                         max_tokens=2048,
                     )
@@ -2480,4 +2499,4 @@ if menu_pilihan == "🤖 AI HR Assistant":
                     )
 
                 except Exception as e:
-                    st.error(f"❌ Terjadi kesalahan pada AI: {e}")
+                    st.error(f"❌ Terjadi kesalahan pada AI Groq: {e}")
