@@ -494,7 +494,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                     placeholder="Contoh: JDC / Head Office",
                 )
                 new_status = st.selectbox(
-                    "Status Karyawan", ["Aktif", "Resign", "PKWT"]
+                    "Status Karyawan", ["Aktif", "Resign", "PKWT", "Promote to CJ"]
                 )
 
                 new_resign_date = "-"
@@ -1126,7 +1126,9 @@ if menu_pilihan == "👥 Master Data Karyawan":
                     "Site / Lokasi Kerja", value=row.get("Site", "")
                 )
                 current_status = row.get("Status", "Aktif")
-                status_opts = ["Aktif", "Resign", "PKWT"]
+                status_opts = ["Aktif", "Resign", "PKWT", "Promote to CJ"]
+                if current_status not in status_opts and current_status:
+                    status_opts.append(current_status)
                 idx_stat = (
                     status_opts.index(current_status)
                     if current_status in status_opts
@@ -2335,7 +2337,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
 
 # ==============================================================================
-# MODUL 4: AI HR ASSISTANT (BACA SELURUH KOLOM TABEL DATA KARYAWAN)
+# MODUL 4: AI HR ASSISTANT (MENYERAP BACAAN DINAMIS SELURUH STATUS & KOLOM)
 # ==============================================================================
 if menu_pilihan == "🤖 AI HR Assistant":
 
@@ -2359,6 +2361,8 @@ if menu_pilihan == "🤖 AI HR Assistant":
     df_emp = st.session_state.get("employees", pd.DataFrame())
 
     raw_data_context = ""
+    status_summary_str = ""
+
     if not df_emp.empty:
         target_cols = [
             "ID",
@@ -2375,12 +2379,17 @@ if menu_pilihan == "🤖 AI HR Assistant":
         existing_cols = [c for c in target_cols if c in df_emp.columns]
         df_context = df_emp[existing_cols].fillna("-")
 
-        # Konversi seluruh baris dan kolom tabel menjadi teks terstruktur untuk AI
+        # 1. Hitung Ringkasan Semua Nilai yang Ada di Kolom Status secara Dinamis
+        if "Status" in df_context.columns:
+            status_counts = df_context["Status"].astype(str).str.strip().value_counts()
+            status_summary_str = ", ".join([f"{k}: {v} orang" for k, v in status_counts.items()])
+
+        # 2. Konversi Seluruh Baris dan Kolom Tabel Menjadi Teks Utuh untuk AI
         raw_data_context = df_context.to_string(index=False)
     else:
         raw_data_context = "Data Karyawan kosong."
 
-    # EKSTRAKSI DATA MANPOWER COST (JIKA TERSEDIA)
+    # Data Manpower Cost tambahan (jika ada)
     df_mc_session = st.session_state.get("df_manpower_cost", pd.DataFrame())
     mp_data_context = ""
     if not df_mc_session.empty:
@@ -2388,23 +2397,25 @@ if menu_pilihan == "🤖 AI HR Assistant":
         mc_cols_exist = [c for c in mc_cols if c in df_mc_session.columns]
         mp_data_context = df_mc_session[mc_cols_exist].fillna("-").to_string(index=False)
 
-    # --- SYSTEM PROMPT DENGAN BACAAN SELURUH KOLOM TABEL ---
+    # --- SYSTEM PROMPT DENGAN PEMBACAAN DINAMIS SELURUH KOLOM & STATUS ---
     system_prompt_context = f"""
     Anda adalah Asisten AI HR internal perusahaan yang cerdas, presisi, dan analitis.
-    Berikut adalah SELURUH DATABASE KARYAWAN LENGKAP mencakup kolom: ID, Nama Lengkap, Posisi, Cost Center, Tanggal Bergabung, Akhir Kontrak, Tanggal Resign, Site, dan Status.
+    
+    📊 REKAPITULASI HITUNGAN OTOMATIS DARI KOLOM STATUS:
+    {status_summary_str if status_summary_str else 'Tidak ada rekap status'}
 
-    📋 DATASET UTUH MASTER KARYAWAN:
+    📋 DATASET UTUH MASTER KARYAWAN (BACA BARIS DEMI BARIS):
     {raw_data_context}
 
-    💳 DATASET MANPOWER COST / PROJECT (JIKA ADA):
+    💳 DATASET MANPOWER COST / PROJECT:
     {mp_data_context if mp_data_context else 'Belum ada data tambahan'}
 
-    PETUNJUK BALASAN:
-    1. Anda memiliki akses penuh ke setiap baris dan setiap kolom data di atas secara utuh.
-    2. Jawab pertanyaan pengguna berdasarkan kriteria kolom apa saja (misal: mencari berdasarkan ID, mengecek Tanggal Bergabung, Akhir Kontrak, Status Resign/Aktif, Site, maupun Cost Center).
-    3. Jika pengguna menanyakan analisis tanggal (misal: "siapa yang kontraknya habis bulan ini?"), bandingkan tanggal pada kolom 'Akhir Kontrak' dengan tanggal hari ini ({date.today().strftime('%Y-%m-%d')}).
-    4. Jika pengguna menanyakan status khusus seperti "promote to CJ", "karyawan CJ Food", "karyawan FKS", periksa kecocokan nama/karyawan pada kolom 'Cost Center', 'Posisi', 'Site', atau 'Project'.
-    5. Selalu berikan jawaban yang ringkas, akurat, berbentuk tabel/list jika datanya banyak, dan gunakan bahasa Indonesia yang profesional.
+    PETUNJUK BALASAN PENTING:
+    1. Kolom 'Status' pada dataset memuat berbagai nilai seperti: 'Aktif', 'Resign', 'Promote to CJ', 'PKWT', dll.
+    2. Jika pengguna menanyakan jumlah atau daftar orang berdasarkan status apa pun (termasuk 'promote to cj' / 'Promote to CJ' / 'CJ'), periksa langsung teks pada kolom 'Status' di dataset di atas.
+    3. Jangan pernah membatasi pencarian hanya pada status 'Aktif' atau 'Resign'. Jika status 'Promote to CJ' ada di tabel, hitung dan sebutkan nama-namanya dengan tepat!
+    4. Jika pengguna menanyakan tanggal (misal: "siapa yang kontraknya habis bulan ini?"), bandingkan tanggal pada kolom 'Akhir Kontrak' dengan tanggal hari ini ({date.today().strftime('%Y-%m-%d')}).
+    5. Jawablah pertanyaan pengguna secara akurat, lugas, dan gunakan bahasa Indonesia yang profesional.
     """
 
     # Inisialisasi Chat History
@@ -2414,7 +2425,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
                 "role": "assistant",
                 "content": (
                     f"Halo! Saya AI HR Assistant. Saya telah membaca seluruh"
-                    f" database ({len(df_emp)} Record Karyawan) secara lengkap mencakup ID, Posisi, Cost Center, Masa Kontrak, Site, hingga Status. Silakan tanyakan apa saja!"
+                    f" database ({len(df_emp)} Record Karyawan) secara lengkap mencakup ID, Posisi, Cost Center, Masa Kontrak, Site, hingga seluruh variasi Status (Aktif, Resign, Promote to CJ, dll). Silakan tanyakan apa saja!"
                 ),
             }
         ]
@@ -2426,14 +2437,14 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
     # Input User
     if prompt := st.chat_input(
-        "Tanyakan sesuatu (misal: 'Siapa saja karyawan yang kontraknya berakhir tahun 2026?')..."
+        "Tanyakan sesuatu (misal: 'Berapa jumlah karyawan status Promote to CJ?')..."
     ):
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("Menganalisis seluruh tabel data karyawan..."):
+            with st.spinner("Menganalisis kolom status dan seluruh data..."):
                 try:
                     api_messages = [
                         {"role": "system", "content": system_prompt_context}
