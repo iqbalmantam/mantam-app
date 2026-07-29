@@ -1650,16 +1650,13 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             aggfunc="first",
         )
 
-        # --- PERBAIKAN TIMESHET MATRIX (TETAP MENJAGA KOLOM STATUS KOSONG) ---
         unique_dates = df_absen_clean["Tgl_Format"].unique()
         sub_headers = ["In", "Out", "Shift", "Status"]
 
-        # Buat struktur MultiIndex secara eksplisit untuk semua tanggal
         full_columns = pd.MultiIndex.from_product(
             [unique_dates, sub_headers], names=["Tgl_Format", "SubHeader"]
         )
 
-        # Paksa reindex seluruh struktur kolom agar 'Status' tidak hilang
         matrix_df = matrix_df.reindex(columns=full_columns)
 
         matrix_df = matrix_df.fillna("-")
@@ -2205,7 +2202,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 st.plotly_chart(fig_proj_month, use_container_width=True)
 
             with gc_emp:
-                # --- GRAFIK BAR PERBANDINGAN FDW VS TDW PER PROJECT ---
                 if (
                     "Employment Status" in df_chart.columns
                     and "Project" in df_chart.columns
@@ -2219,7 +2215,6 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         .replace("", "BELUM DIISI")
                     )
 
-                    # Ambil top 8 project terbesar untuk scannability
                     top_emp_projects = (
                         df_emp_chart.groupby("Project")["Parsed_Payment"]
                         .sum()
@@ -2258,7 +2253,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         textangle=0,
                         textposition="outside",
                         textfont=dict(size=11),
-                        cliponaxis=False,  # Properti ditaruh langsung di update_traces untuk mencegah error
+                        cliponaxis=False,
                         hovertemplate=(
                             "<b>Project:</b> %{x}<br><b>Status:</b>"
                             " %{fullData.name}<br><b>Total Payment:</b> Rp"
@@ -2270,7 +2265,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         yaxis_title="Total Payment (Rp)",
                         xaxis_tickangle=-25,
                         legend_title_text="Employment Status",
-                        margin=dict(t=60, b=50),  # Memberikan margin atas yang cukup
+                        margin=dict(t=60, b=50),
                     )
                     st.plotly_chart(fig_stat_proj, use_container_width=True)
 
@@ -2340,7 +2335,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
 
 # ==============================================================================
-# MODUL 4: AI HR ASSISTANT (PINTAR & BACA RINCIAN NAMA KARYAWAN PER CC/PROJECT)
+# MODUL 4: AI HR ASSISTANT (BACA SELURUH KOLOM TABEL DATA KARYAWAN)
 # ==============================================================================
 if menu_pilihan == "🤖 AI HR Assistant":
 
@@ -2360,123 +2355,56 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
     client = Groq(api_key=groq_key)
 
-    # --- HITUNG KONTEKS DATA REALTIME UNTUK DIBERIKAN KE AI ---
+    # --- AMBIL DAN EKSTRAKSI SELURUH KOLOM DATA KARYAWAN ---
     df_emp = st.session_state.get("employees", pd.DataFrame())
 
-    # Filter Karyawan Aktif
-    if not df_emp.empty and "Status" in df_emp.columns:
-        df_aktif = df_emp[df_emp["Status"] == "Aktif"].copy()
-        total_emp = len(df_emp)
-        aktif_emp = len(df_aktif)
-        resign_emp = len(df_emp[df_emp["Status"] == "Resign"])
+    raw_data_context = ""
+    if not df_emp.empty:
+        target_cols = [
+            "ID",
+            "Nama Lengkap",
+            "Posisi",
+            "Cost Center",
+            "Tanggal Bergabung",
+            "Akhir Kontrak",
+            "Tanggal Resign",
+            "Site",
+            "Status",
+        ]
+
+        existing_cols = [c for c in target_cols if c in df_emp.columns]
+        df_context = df_emp[existing_cols].fillna("-")
+
+        # Konversi seluruh baris dan kolom tabel menjadi teks terstruktur untuk AI
+        raw_data_context = df_context.to_string(index=False)
     else:
-        df_aktif = df_emp.copy() if not df_emp.empty else pd.DataFrame()
-        total_emp = len(df_emp)
-        aktif_emp, resign_emp = total_emp, 0
+        raw_data_context = "Data Karyawan kosong."
 
-    # 1. Ringkasan per Site Total
-    site_summary = ""
-    if not df_aktif.empty and "Site" in df_aktif.columns:
-        site_counts = (
-            df_aktif["Site"]
-            .astype(str)
-            .str.strip()
-            .str.upper()
-            .value_counts()
-            .to_dict()
-        )
-        site_summary = ", ".join([
-            f"{k}: {v} orang"
-            for k, v in site_counts.items()
-            if k and k != "NAN"
-        ])
-
-    # 2. GROUPING RINCI: SITE & POSISI
-    site_posisi_summary = ""
-    if (
-        not df_aktif.empty
-        and "Site" in df_aktif.columns
-        and "Posisi" in df_aktif.columns
-    ):
-        df_grouped = (
-            df_aktif.groupby(["Site", "Posisi"])["ID"]
-            .count()
-            .reset_index(name="Jumlah")
-        )
-        grouped_items = []
-        for _, row in df_grouped.iterrows():
-            site_val = str(row["Site"]).strip().upper()
-            pos_val = str(row["Posisi"]).strip()
-            cnt_val = row["Jumlah"]
-            if site_val and site_val != "NAN" and pos_val and pos_val != "NAN":
-                grouped_items.append(f"[{site_val} - {pos_val}: {cnt_val} orang]")
-
-        site_posisi_summary = ", ".join(grouped_items)
-
-    # 3. Ringkasan Agregat Cost Center
-    cc_summary = ""
-    if not df_aktif.empty and "Cost Center" in df_aktif.columns:
-        df_cc_clean = (
-            df_aktif["Cost Center"]
-            .astype(str)
-            .str.strip()
-            .str.upper()
-            .replace({"FKS": "FKS", "": "BELUM DIISI"})
-        )
-        cc_counts = df_cc_clean.value_counts().to_dict()
-        cc_summary = ", ".join([
-            f"{k}: {v} orang" for k, v in cc_counts.items() if k and k != "NAN"
-        ])
-
-    # 4. RINCIAN NAMA KARYAWAN PER COST CENTER (DARI MASTER KARYAWAN)
-    cc_detail_names = ""
-    if not df_aktif.empty and "Cost Center" in df_aktif.columns and "Nama Lengkap" in df_aktif.columns:
-        df_cc_grouped = (
-            df_aktif.groupby("Cost Center")["Nama Lengkap"]
-            .apply(lambda names: ", ".join(names.dropna().astype(str)))
-            .to_dict()
-        )
-        cc_detail_names = "\n".join([f"- Cost Center {k}: {v}" for k, v in df_cc_grouped.items() if str(k).strip() != ""])
-
-    # 5. RINCIAN NAMA KARYAWAN PER PROJECT (DARI TAB MANPOWER COST)
-    mp_proj_detail_names = ""
+    # EKSTRAKSI DATA MANPOWER COST (JIKA TERSEDIA)
     df_mc_session = st.session_state.get("df_manpower_cost", pd.DataFrame())
-    if not df_mc_session.empty and "Project" in df_mc_session.columns and "Name" in df_mc_session.columns:
-        df_proj_grouped = (
-            df_mc_session.groupby("Project")["Name"]
-            .apply(lambda names: ", ".join(names.dropna().astype(str).unique()))
-            .to_dict()
-        )
-        mp_proj_detail_names = "\n".join([f"- Project {k}: {v}" for k, v in df_proj_grouped.items() if str(k).strip() != ""])
+    mp_data_context = ""
+    if not df_mc_session.empty:
+        mc_cols = ["Name", "Cost Center Name", "Work Location", "Job Position", "Project", "Employment Status"]
+        mc_cols_exist = [c for c in mc_cols if c in df_mc_session.columns]
+        mp_data_context = df_mc_session[mc_cols_exist].fillna("-").to_string(index=False)
 
-    # --- SYSTEM PROMPT LENGKAP BACA JUMLAH DAN RINCIAN NAMA KARYAWAN ---
+    # --- SYSTEM PROMPT DENGAN BACAAN SELURUH KOLOM TABEL ---
     system_prompt_context = f"""
-    Anda adalah Asisten AI HR internal perusahaan yang cerdas, presisi, dan ramah.
-    Anda memiliki akses langsung ke data realtime database berikut:
+    Anda adalah Asisten AI HR internal perusahaan yang cerdas, presisi, dan analitis.
+    Berikut adalah SELURUH DATABASE KARYAWAN LENGKAP mencakup kolom: ID, Nama Lengkap, Posisi, Cost Center, Tanggal Bergabung, Akhir Kontrak, Tanggal Resign, Site, dan Status.
 
-    📊 RINGKASAN UMUM:
-    - Total Record Karyawan: {total_emp} orang
-    - Karyawan Aktif: {aktif_emp} orang
-    - Karyawan Resign: {resign_emp} orang
-    - Total Karyawan per Site/Lokasi: {site_summary if site_summary else 'Belum ada data'}
+    📋 DATASET UTUH MASTER KARYAWAN:
+    {raw_data_context}
 
-    🔥 RINCIAN POSISI PER SITE (LOKASI KERJA):
-    {site_posisi_summary if site_posisi_summary else 'Belum ada data detail'}
-
-    💳 REKAPITULASI JUMLAH PER COST CENTER:
-    {cc_summary if cc_summary else 'Belum ada data'}
-
-    📝 DAFTAR NAMA KARYAWAN PER COST CENTER (MASTER KARYAWAN):
-    {cc_detail_names if cc_detail_names else 'Belum ada data detail nama'}
-
-    📋 DAFTAR NAMA KARYAWAN PER PROJECT (MANPOWER COST):
-    {mp_proj_detail_names if mp_proj_detail_names else 'Belum ada data Manpower Cost'}
+    💳 DATASET MANPOWER COST / PROJECT (JIKA ADA):
+    {mp_data_context if mp_data_context else 'Belum ada data tambahan'}
 
     PETUNJUK BALASAN:
-    1. Jika pengguna menanyakan jumlah orang pada Cost Center atau Project tertentu (misalnya FKS, VinFast, CJ Food, dsb.), sebutkan jumlahnya secara akurat.
-    2. Jika pengguna menanyakan DAFTAR NAMA atau "SIAPA SAJA" karyawan di Cost Center/Project tertentu (misalnya: "siapa saja yang di CJ", "siapa karyawan VinFast"), sebutkan daftar nama-nama karyawan yang terdaftar di atas.
-    3. Jika pengguna menanyakan promosi atau riwayat perubahan, jelaskan daftar nama karyawan yang saat ini tercatat berada di project/cost center tersebut.
-    4. Jawab selalu dengan bahasa Indonesia yang sopan, ramah, dan profesional.
+    1. Anda memiliki akses penuh ke setiap baris dan setiap kolom data di atas secara utuh.
+    2. Jawab pertanyaan pengguna berdasarkan kriteria kolom apa saja (misal: mencari berdasarkan ID, mengecek Tanggal Bergabung, Akhir Kontrak, Status Resign/Aktif, Site, maupun Cost Center).
+    3. Jika pengguna menanyakan analisis tanggal (misal: "siapa yang kontraknya habis bulan ini?"), bandingkan tanggal pada kolom 'Akhir Kontrak' dengan tanggal hari ini ({date.today().strftime('%Y-%m-%d')}).
+    4. Jika pengguna menanyakan status khusus seperti "promote to CJ", "karyawan CJ Food", "karyawan FKS", periksa kecocokan nama/karyawan pada kolom 'Cost Center', 'Posisi', 'Site', atau 'Project'.
+    5. Selalu berikan jawaban yang ringkas, akurat, berbentuk tabel/list jika datanya banyak, dan gunakan bahasa Indonesia yang profesional.
     """
 
     # Inisialisasi Chat History
@@ -2486,8 +2414,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
                 "role": "assistant",
                 "content": (
                     f"Halo! Saya AI HR Assistant. Saya telah membaca seluruh"
-                    f" database ({aktif_emp} Karyawan Aktif beserta rincian namanya). Silakan tanyakan"
-                    f" jumlah maupun daftar nama karyawan berdasarkan Cost Center, Project, atau Lokasi Site!"
+                    f" database ({len(df_emp)} Record Karyawan) secara lengkap mencakup ID, Posisi, Cost Center, Masa Kontrak, Site, hingga Status. Silakan tanyakan apa saja!"
                 ),
             }
         ]
@@ -2499,14 +2426,14 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
     # Input User
     if prompt := st.chat_input(
-        "Tanyakan sesuatu (misal: 'siapa saja karyawan yang ada di project CJ Food?')..."
+        "Tanyakan sesuatu (misal: 'Siapa saja karyawan yang kontraknya berakhir tahun 2026?')..."
     ):
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("Mencari data Cost Center / Project..."):
+            with st.spinner("Menganalisis seluruh tabel data karyawan..."):
                 try:
                     api_messages = [
                         {"role": "system", "content": system_prompt_context}
@@ -2518,8 +2445,8 @@ if menu_pilihan == "🤖 AI HR Assistant":
                     completion = client.chat.completions.create(
                         model="llama-3.3-70b-versatile",
                         messages=api_messages,
-                        temperature=0.2,
-                        max_tokens=1024,
+                        temperature=0.1,
+                        max_tokens=2048,
                     )
 
                     response_text = completion.choices[0].message.content
