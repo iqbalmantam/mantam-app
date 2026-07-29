@@ -164,7 +164,6 @@ def load_data():
     try:
         df = conn.read(worksheet="Master_Karyawan", ttl=0)
         if df is not None and not df.empty:
-            df.columns = [str(c).strip() for c in df.columns]
             if "ID" in df.columns:
                 df["ID"] = df["ID"].astype(str).str.strip().str.upper()
             if "Jabatan" in df.columns and "Posisi" not in df.columns:
@@ -182,7 +181,6 @@ def load_data():
         try:
             df = conn.read(ttl=0)
             if df is not None and not df.empty:
-                df.columns = [str(c).strip() for c in df.columns]
                 if "ID" in df.columns:
                     df["ID"] = df["ID"].astype(str).str.strip().str.upper()
                 if "Jabatan" in df.columns and "Posisi" not in df.columns:
@@ -217,8 +215,6 @@ def load_data():
 def load_snapshot_data():
     try:
         df_snap = conn.read(worksheet="Snapshot_Bulanan", ttl=0)
-        if df_snap is not None and not df_snap.empty:
-            df_snap.columns = [str(c).strip() for c in df_snap.columns]
         return df_snap if df_snap is not None else pd.DataFrame()
     except Exception:
         return pd.DataFrame()
@@ -236,12 +232,7 @@ def generate_pdf(df):
     pdf.set_font("Helvetica", "B", 14)
 
     pdf.cell(
-        0,
-        10,
-        "LAPORAN DATABASE KARYAWAN",
-        new_x="LMARGIN",
-        new_y="NEXT",
-        align="C",
+        0, 10, "LAPORAN DATABASE KARYAWAN", new_x="LMARGIN", new_y="NEXT", align="C"
     )
     pdf.set_font("Helvetica", "", 10)
     pdf.cell(
@@ -311,9 +302,7 @@ def generate_pdf(df):
             border=1,
             align="C",
         )
-        pdf.cell(
-            col_widths[7], 6, str(row.get("Site", "")), border=1, align="C"
-        )
+        pdf.cell(col_widths[7], 6, str(row.get("Site", "")), border=1, align="C")
         pdf.cell(
             col_widths[8],
             6,
@@ -459,22 +448,22 @@ if menu_pilihan == "👥 Master Data Karyawan":
 
     df_master_current = st.session_state.employees
     total_karyawan = len(df_master_current)
-    
-    col_stat_temp = next((c for c in df_master_current.columns if c.lower() == "status"), "Status")
-    
-    if col_stat_temp in df_master_current.columns:
-        stat_series = df_master_current[col_stat_temp].astype(str).str.strip().str.lower()
-        total_aktif = len(df_master_current[stat_series == "aktif"])
-        total_resign = len(df_master_current[stat_series.isin(["resign", "promote to cj"])])
-    else:
-        total_aktif = total_karyawan
-        total_resign = 0
+    total_aktif = (
+        len(df_master_current[df_master_current["Status"] == "Aktif"])
+        if "Status" in df_master_current.columns
+        else total_karyawan
+    )
+    total_resign = (
+        len(df_master_current[df_master_current["Status"] == "Resign"])
+        if "Status" in df_master_current.columns
+        else 0
+    )
 
     col_m1, col_m2, col_m3 = st.columns(3)
     with col_m1:
         st.metric(label="Karyawan Aktif", value=total_aktif)
     with col_m2:
-        st.metric(label="Karyawan Resign / Promote", value=total_resign)
+        st.metric(label="Karyawan Resign", value=total_resign)
     with col_m3:
         st.metric(label="Total Record Data", value=total_karyawan)
 
@@ -505,14 +494,13 @@ if menu_pilihan == "👥 Master Data Karyawan":
                     placeholder="Contoh: JDC / Head Office",
                 )
                 new_status = st.selectbox(
-                    "Status Karyawan",
-                    ["Aktif", "Resign", "Promote to CJ", "PKWT"],
+                    "Status Karyawan", ["Aktif", "Resign", "PKWT"]
                 )
 
                 new_resign_date = "-"
-                if new_status in ["Resign", "Promote to CJ"]:
+                if new_status == "Resign":
                     new_resign_date = st.date_input(
-                        "Tanggal Resign / Perubahan", value=date.today()
+                        "Tanggal Resign", value=date.today()
                     ).strftime("%Y-%m-%d")
 
                 submit_btn = st.form_submit_button("Simpan Karyawan")
@@ -527,12 +515,7 @@ if menu_pilihan == "👥 Master Data Karyawan":
                         else []
                     )
 
-                    if (
-                        not clean_id
-                        or not new_name
-                        or not new_role
-                        or not new_cc
-                    ):
+                    if not clean_id or not new_name or not new_role or not new_cc:
                         st.error("Mohon isi semua kolom yang wajib!")
                     elif clean_id in existing_ids:
                         st.error(f"❌ ID '{clean_id}' sudah digunakan!")
@@ -693,11 +676,9 @@ if menu_pilihan == "👥 Master Data Karyawan":
             if st.button(f"🔒 Kunci Data {selected_periode}"):
                 try:
                     df_curr = st.session_state.employees.copy()
-                    col_st = next((c for c in df_curr.columns if c.lower() == "status"), "Status")
-                    
                     df_active = (
-                        df_curr[df_curr[col_st].astype(str).str.strip().str.lower() == "aktif"].copy()
-                        if col_st in df_curr.columns
+                        df_curr[df_curr["Status"] == "Aktif"].copy()
+                        if "Status" in df_curr.columns
                         else df_curr.copy()
                     )
                     df_active["Periode"] = selected_periode
@@ -836,35 +817,24 @@ if menu_pilihan == "👥 Master Data Karyawan":
             ].copy()
             active_period_str = selected_dash_period
 
-        # --- PERBAIKAN MUTLAK FILTER DOUGHNUT CHART ---
-        def process_pie_data(df):
-            if df.empty:
-                return pd.DataFrame()
+        def filter_resign_for_period(df, target_period):
+            if df.empty or "Status" not in df.columns:
+                return df
 
-            df_clean = df.copy()
-            df_clean.columns = [str(c).strip() for c in df_clean.columns]
+            mask_aktif = df["Status"].astype(str).str.strip().isin(["Aktif", "PKWT"])
 
-            col_status = next(
-                (c for c in df_clean.columns if c.lower() == "status"), "Status"
-            )
+            mask_resign_bulan_ini = pd.Series(False, index=df.index)
+            if "Tanggal Resign" in df.columns:
+                resign_dates = pd.to_datetime(
+                    df["Tanggal Resign"], errors="coerce"
+                ).dt.strftime("%Y-%m")
+                mask_resign_bulan_ini = (
+                    df["Status"].astype(str).str.strip() == "Resign"
+                ) & (resign_dates == target_period)
 
-            # Standardisasi String Status Karyawan
-            def map_status_label(val):
-                val_lower = str(val).lower().strip()
-                if "promote" in val_lower or "cj" in val_lower:
-                    return "Promote to CJ"
-                elif "resign" in val_lower:
-                    return "Resign"
-                elif "pkwt" in val_lower:
-                    return "PKWT"
-                elif "aktif" in val_lower:
-                    return "Aktif"
-                return str(val).strip()
+            return df[mask_aktif | mask_resign_bulan_ini]
 
-            df_clean["Status_Group"] = df_clean[col_status].apply(map_status_label)
-            return df_clean
-
-        df_pie_chart = process_pie_data(df_ana)
+        df_pie_chart = filter_resign_for_period(df_ana, active_period_str)
 
         if not df_ana.empty:
             tab_overview, tab_trend, tab_cost = st.tabs([
@@ -876,54 +846,35 @@ if menu_pilihan == "👥 Master Data Karyawan":
             with tab_overview:
                 c1, c2 = st.columns(2)
                 with c1:
-                    if not df_pie_chart.empty and "Status_Group" in df_pie_chart.columns:
-                        status_color_map = {
-                            "Aktif": "#52BE80",        # Hijau Segar
-                            "PKWT": "#1ABC9C",         # Tosca
-                            "Resign": "#EC7063",       # Coral / Merah
-                            "Promote to CJ": "#3498DB", # Biru Cerah
-                        }
-
+                    if (
+                        "Status" in df_pie_chart.columns
+                        and not df_pie_chart.empty
+                    ):
                         fig_status = px.pie(
                             df_pie_chart,
-                            names="Status_Group",
+                            names="Status",
                             title=(
                                 "Komposisi Status Karyawan"
                                 f" ({selected_dash_period})"
                             ),
-                            hole=0.45,
-                            color="Status_Group",
-                            color_discrete_map=status_color_map,
+                            hole=0.4,
+                            color_discrete_sequence=px.colors.qualitative.Set2,
                         )
                         fig_status.update_traces(
-                            textposition="inside", 
-                            textinfo="percent+label",
-                            hoverinfo="label+value+percent",
-                            marker=dict(line=dict(color="#000000", width=1))
-                        )
-                        fig_status.update_layout(
-                            showlegend=True,
-                            legend=dict(
-                                orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5
-                            )
+                            textposition="inside", textinfo="percent+label"
                         )
                         st.plotly_chart(fig_status, use_container_width=True)
                     else:
                         st.info("Tidak ada data status untuk ditampilkan.")
                 with c2:
-                    col_pos = next((c for c in df_ana.columns if c.lower() in ["posisi", "jabatan"]), "Posisi")
-                    col_stat = next((c for c in df_ana.columns if c.lower() == "status"), "Status")
-
-                    if col_pos in df_ana.columns:
+                    if "Posisi" in df_ana.columns:
                         df_posisi_aktif = (
-                            df_ana[df_ana[col_stat].astype(str).str.strip().str.lower() == "aktif"]
-                            if col_stat in df_ana.columns
+                            df_ana[df_ana["Status"] == "Aktif"]
+                            if "Status" in df_ana.columns
                             else df_ana
                         )
                         top_roles = (
-                            df_posisi_aktif[col_pos]
-                            .astype(str)
-                            .str.strip()
+                            df_posisi_aktif["Posisi"]
                             .value_counts()
                             .head(10)
                             .reset_index()
@@ -979,11 +930,10 @@ if menu_pilihan == "👥 Master Data Karyawan":
             with tab_cost:
                 c3, c4 = st.columns(2)
                 with c3:
-                    col_cc = next((c for c in df_ana.columns if "cost" in c.lower()), "Cost Center")
-                    if col_cc in df_ana.columns:
+                    if "Cost Center" in df_ana.columns:
                         df_cc_clean = df_ana.copy()
                         df_cc_clean["Cost Center Clean"] = (
-                            df_cc_clean[col_cc]
+                            df_cc_clean["Cost Center"]
                             .astype(str)
                             .str.strip()
                             .str.title()
@@ -1026,11 +976,10 @@ if menu_pilihan == "👥 Master Data Karyawan":
                         )
                         st.plotly_chart(fig_cc, use_container_width=True)
                 with c4:
-                    col_site = next((c for c in df_ana.columns if c.lower() == "site"), "Site")
-                    if col_site in df_ana.columns:
+                    if "Site" in df_ana.columns:
                         df_site_clean = df_ana.copy()
                         df_site_clean["Site Clean"] = (
-                            df_site_clean[col_site]
+                            df_site_clean["Site"]
                             .astype(str)
                             .str.strip()
                             .str.upper()
@@ -1176,8 +1125,8 @@ if menu_pilihan == "👥 Master Data Karyawan":
                 e_site = st.text_input(
                     "Site / Lokasi Kerja", value=row.get("Site", "")
                 )
-                current_status = str(row.get("Status", "Aktif")).strip()
-                status_opts = ["Aktif", "Resign", "Promote to CJ", "PKWT"]
+                current_status = row.get("Status", "Aktif")
+                status_opts = ["Aktif", "Resign", "PKWT"]
                 idx_stat = (
                     status_opts.index(current_status)
                     if current_status in status_opts
@@ -1250,7 +1199,6 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
         try:
             df_absen = conn.read(worksheet="Absensi_Karyawan", ttl=0)
             if df_absen is not None and not df_absen.empty:
-                df_absen.columns = [str(c).strip() for c in df_absen.columns]
                 df_absen["ID"] = (
                     df_absen["ID"].astype(str).str.strip().str.upper()
                 )
@@ -1702,13 +1650,16 @@ if menu_pilihan == "⏱️ Rekap Absensi (Timesheet)":
             aggfunc="first",
         )
 
+        # --- PERBAIKAN TIMESHET MATRIX (TETAP MENJAGA KOLOM STATUS KOSONG) ---
         unique_dates = df_absen_clean["Tgl_Format"].unique()
         sub_headers = ["In", "Out", "Shift", "Status"]
 
+        # Buat struktur MultiIndex secara eksplisit untuk semua tanggal
         full_columns = pd.MultiIndex.from_product(
             [unique_dates, sub_headers], names=["Tgl_Format", "SubHeader"]
         )
 
+        # Paksa reindex seluruh struktur kolom agar 'Status' tidak hilang
         matrix_df = matrix_df.reindex(columns=full_columns)
 
         matrix_df = matrix_df.fillna("-")
@@ -2254,6 +2205,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                 st.plotly_chart(fig_proj_month, use_container_width=True)
 
             with gc_emp:
+                # --- GRAFIK BAR PERBANDINGAN FDW VS TDW PER PROJECT ---
                 if (
                     "Employment Status" in df_chart.columns
                     and "Project" in df_chart.columns
@@ -2267,6 +2219,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         .replace("", "BELUM DIISI")
                     )
 
+                    # Ambil top 8 project terbesar untuk scannability
                     top_emp_projects = (
                         df_emp_chart.groupby("Project")["Parsed_Payment"]
                         .sum()
@@ -2305,7 +2258,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         textangle=0,
                         textposition="outside",
                         textfont=dict(size=11),
-                        cliponaxis=False,
+                        cliponaxis=False,  # Properti ditaruh langsung di update_traces untuk mencegah error
                         hovertemplate=(
                             "<b>Project:</b> %{x}<br><b>Status:</b>"
                             " %{fullData.name}<br><b>Total Payment:</b> Rp"
@@ -2317,7 +2270,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
                         yaxis_title="Total Payment (Rp)",
                         xaxis_tickangle=-25,
                         legend_title_text="Employment Status",
-                        margin=dict(t=60, b=50),
+                        margin=dict(t=60, b=50),  # Memberikan margin atas yang cukup
                     )
                     st.plotly_chart(fig_stat_proj, use_container_width=True)
 
@@ -2407,26 +2360,25 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
     client = Groq(api_key=groq_key)
 
+    # --- HITUNG KONTEKS DATA REALTIME UNTUK DIBERIKAN KE AI ---
     df_emp = st.session_state.get("employees", pd.DataFrame())
 
-    col_st_ai = next((c for c in df_emp.columns if c.lower() == "status"), "Status")
-
-    if not df_emp.empty and col_st_ai in df_emp.columns:
-        stat_series = df_emp[col_st_ai].astype(str).str.strip().str.lower()
-        df_aktif = df_emp[stat_series == "aktif"].copy()
+    # Filter Karyawan Aktif
+    if not df_emp.empty and "Status" in df_emp.columns:
+        df_aktif = df_emp[df_emp["Status"] == "Aktif"].copy()
         total_emp = len(df_emp)
         aktif_emp = len(df_aktif)
-        resign_emp = len(df_emp[stat_series.isin(["resign", "promote to cj"])])
+        resign_emp = len(df_emp[df_emp["Status"] == "Resign"])
     else:
         df_aktif = df_emp.copy() if not df_emp.empty else pd.DataFrame()
         total_emp = len(df_emp)
         aktif_emp, resign_emp = total_emp, 0
 
+    # 1. Ringkasan per Site Total
     site_summary = ""
-    col_site_ai = next((c for c in df_aktif.columns if c.lower() == "site"), "Site")
-    if not df_aktif.empty and col_site_ai in df_aktif.columns:
+    if not df_aktif.empty and "Site" in df_aktif.columns:
         site_counts = (
-            df_aktif[col_site_ai]
+            df_aktif["Site"]
             .astype(str)
             .str.strip()
             .str.upper()
@@ -2439,33 +2391,33 @@ if menu_pilihan == "🤖 AI HR Assistant":
             if k and k != "NAN"
         ])
 
+    # 2. GROUPING RINCI: SITE & POSISI
     site_posisi_summary = ""
-    col_pos_ai = next((c for c in df_aktif.columns if c.lower() in ["posisi", "jabatan"]), "Posisi")
     if (
         not df_aktif.empty
-        and col_site_ai in df_aktif.columns
-        and col_pos_ai in df_aktif.columns
+        and "Site" in df_aktif.columns
+        and "Posisi" in df_aktif.columns
     ):
         df_grouped = (
-            df_aktif.groupby([col_site_ai, col_pos_ai])["ID"]
+            df_aktif.groupby(["Site", "Posisi"])["ID"]
             .count()
             .reset_index(name="Jumlah")
         )
         grouped_items = []
         for _, row in df_grouped.iterrows():
-            site_val = str(row[col_site_ai]).strip().upper()
-            pos_val = str(row[col_pos_ai]).strip()
+            site_val = str(row["Site"]).strip().upper()
+            pos_val = str(row["Posisi"]).strip()
             cnt_val = row["Jumlah"]
             if site_val and site_val != "NAN" and pos_val and pos_val != "NAN":
                 grouped_items.append(f"[{site_val} - {pos_val}: {cnt_val} orang]")
 
         site_posisi_summary = ", ".join(grouped_items)
 
+    # 3. Ringkasan LENGKAP Seluruh Cost Center dari Master Karyawan (Tanpa dipotong)
     cc_summary = ""
-    col_cc_ai = next((c for c in df_aktif.columns if "cost" in c.lower()), "Cost Center")
-    if not df_aktif.empty and col_cc_ai in df_aktif.columns:
+    if not df_aktif.empty and "Cost Center" in df_aktif.columns:
         df_cc_clean = (
-            df_aktif[col_cc_ai]
+            df_aktif["Cost Center"]
             .astype(str)
             .str.strip()
             .str.upper()
@@ -2476,6 +2428,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
             f"{k}: {v} orang" for k, v in cc_counts.items() if k and k != "NAN"
         ])
 
+    # 4. Ringkasan Data Project dari Tab Manpower Cost (jika terisi)
     mp_proj_summary = ""
     df_mc_session = st.session_state.get("df_manpower_cost", pd.DataFrame())
     if not df_mc_session.empty and "Project" in df_mc_session.columns:
@@ -2491,6 +2444,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
             f"{k}: {v} orang" for k, v in proj_counts.items() if k and k != "NAN"
         ])
 
+    # --- SYSTEM PROMPT LENGKAP BACA SELURUH COST CENTER & PROJECT ---
     system_prompt_context = f"""
     Anda adalah Asisten AI HR internal perusahaan yang cerdas, presisi, dan ramah.
     Anda memiliki akses langsung ke data realtime database berikut:
@@ -2498,7 +2452,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
     📊 RINGKASAN UMUM:
     - Total Record Karyawan: {total_emp} orang
     - Karyawan Aktif: {aktif_emp} orang
-    - Karyawan Resign/Promote: {resign_emp} orang
+    - Karyawan Resign: {resign_emp} orang
     - Total Karyawan per Site/Lokasi: {site_summary if site_summary else 'Belum ada data'}
 
     🔥 RINCIAN POSISI PER SITE (LOKASI KERJA):
@@ -2516,6 +2470,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
     3. Jawab selalu dengan bahasa Indonesia yang sopan, ramah, dan profesional.
     """
 
+    # Inisialisasi Chat History
     if "chat_messages" not in st.session_state:
         st.session_state.chat_messages = [
             {
@@ -2528,10 +2483,12 @@ if menu_pilihan == "🤖 AI HR Assistant":
             }
         ]
 
+    # Tampilkan riwayat chat
     for message in st.session_state.chat_messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
+    # Input User
     if prompt := st.chat_input(
         "Tanyakan sesuatu (misal: 'berapa orang yang pegang project FKS?')..."
     ):
