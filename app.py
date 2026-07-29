@@ -2337,7 +2337,7 @@ if menu_pilihan == "💳 Manpower Cost Manager":
 
 
 # ==============================================================================
-# MODUL 4: AI HR ASSISTANT (MENYERAP BACAAN DINAMIS SELURUH STATUS & KOLOM)
+# MODUL 4: AI HR ASSISTANT (EKSPLISIT DAN PRESISI DENGAN DATA CSV RAW)
 # ==============================================================================
 if menu_pilihan == "🤖 AI HR Assistant":
 
@@ -2357,10 +2357,12 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
     client = Groq(api_key=groq_key)
 
-    # --- AMBIL DAN EKSTRAKSI SELURUH KOLOM DATA KARYAWAN ---
+    # --- SELALU PASTIKAN BACA DATA TERBARU DARI GOOGLE SHEETS / SESSION ---
     df_emp = st.session_state.get("employees", pd.DataFrame())
+    if df_emp.empty:
+        df_emp = load_data()
 
-    raw_data_context = ""
+    raw_csv_context = ""
     status_summary_str = ""
 
     if not df_emp.empty:
@@ -2379,43 +2381,53 @@ if menu_pilihan == "🤖 AI HR Assistant":
         existing_cols = [c for c in target_cols if c in df_emp.columns]
         df_context = df_emp[existing_cols].fillna("-")
 
-        # 1. Hitung Ringkasan Semua Nilai yang Ada di Kolom Status secara Dinamis
+        # Hitung Distribusi Isi Kolom Status
         if "Status" in df_context.columns:
             status_counts = df_context["Status"].astype(str).str.strip().value_counts()
-            status_summary_str = ", ".join([f"{k}: {v} orang" for k, v in status_counts.items()])
+            status_summary_str = "\n".join([f"- Status '{k}': {v} orang" for k, v in status_counts.items()])
 
-        # 2. Konversi Seluruh Baris dan Kolom Tabel Menjadi Teks Utuh untuk AI
-        raw_data_context = df_context.to_string(index=False)
+        # Konversi ke Format CSV murni agar tidak ada teks terpotong oleh format visual Pandas
+        raw_csv_context = df_context.to_csv(index=False)
     else:
-        raw_data_context = "Data Karyawan kosong."
+        raw_csv_context = "Data Karyawan Kosong."
 
-    # Data Manpower Cost tambahan (jika ada)
+    # Dataset Tambahan Manpower Cost
     df_mc_session = st.session_state.get("df_manpower_cost", pd.DataFrame())
-    mp_data_context = ""
+    if df_mc_session.empty:
+        df_mc_session = load_manpower_cost_data()
+
+    mp_csv_context = ""
     if not df_mc_session.empty:
         mc_cols = ["Name", "Cost Center Name", "Work Location", "Job Position", "Project", "Employment Status"]
         mc_cols_exist = [c for c in mc_cols if c in df_mc_session.columns]
-        mp_data_context = df_mc_session[mc_cols_exist].fillna("-").to_string(index=False)
+        mp_csv_context = df_mc_session[mc_cols_exist].fillna("-").to_csv(index=False)
 
-    # --- SYSTEM PROMPT DENGAN PEMBACAAN DINAMIS SELURUH KOLOM & STATUS ---
+    # --- SYSTEM PROMPT SANGAT TEGAS BACA ISI KOLOM STATUS ---
     system_prompt_context = f"""
     Anda adalah Asisten AI HR internal perusahaan yang cerdas, presisi, dan analitis.
     
-    📊 REKAPITULASI HITUNGAN OTOMATIS DARI KOLOM STATUS:
+    PERHATIAN UTAMA:
+    Di bawah ini adalah DATASET LENGKAP Master Karyawan dalam format CSV murni.
+    Setiap baris data memiliki kolom 'Status'. Nilai pada kolom 'Status' TIDAK HANYA 'Aktif' dan 'Resign', melainkan juga mencakup nilai lain seperti 'Promote to CJ', 'PKWT', dll.
+
+    📊 RINGKASAN REKAPITULASI DARI KOLOM STATUS SAAT INI:
     {status_summary_str if status_summary_str else 'Tidak ada rekap status'}
 
-    📋 DATASET UTUH MASTER KARYAWAN (BACA BARIS DEMI BARIS):
-    {raw_data_context}
+    📄 DATASET UTUH MASTER KARYAWAN (FORMAT CSV):
+    ```csv
+    {raw_csv_context}
+    ```
 
-    💳 DATASET MANPOWER COST / PROJECT:
-    {mp_data_context if mp_data_context else 'Belum ada data tambahan'}
+    📄 DATASET MANPOWER COST / PROJECT (FORMAT CSV):
+    ```csv
+    {mp_csv_context if mp_csv_context else 'Tidak ada data'}
+    ```
 
     PETUNJUK BALASAN PENTING:
-    1. Kolom 'Status' pada dataset memuat berbagai nilai seperti: 'Aktif', 'Resign', 'Promote to CJ', 'PKWT', dll.
-    2. Jika pengguna menanyakan jumlah atau daftar orang berdasarkan status apa pun (termasuk 'promote to cj' / 'Promote to CJ' / 'CJ'), periksa langsung teks pada kolom 'Status' di dataset di atas.
-    3. Jangan pernah membatasi pencarian hanya pada status 'Aktif' atau 'Resign'. Jika status 'Promote to CJ' ada di tabel, hitung dan sebutkan nama-namanya dengan tepat!
-    4. Jika pengguna menanyakan tanggal (misal: "siapa yang kontraknya habis bulan ini?"), bandingkan tanggal pada kolom 'Akhir Kontrak' dengan tanggal hari ini ({date.today().strftime('%Y-%m-%d')}).
-    5. Jawablah pertanyaan pengguna secara akurat, lugas, dan gunakan bahasa Indonesia yang profesional.
+    1. Jika pengguna bertanya tentang status tertentu (misal: "berapa yang promote to cj?", "siapa saja yang statusnya promote to cj di kolom status?"), BACA LANGSUNG kolom 'Status' pada dataset CSV di atas.
+    2. JANGAN PERNAH MENJAWAB bahwa Anda tidak memiliki informasi tentang status tertentu jika status tersebut tercantum di dalam CSV.
+    3. Jika pengguna menanyakan tanggal (misal: "siapa yang kontraknya habis bulan ini?"), bandingkan tanggal pada kolom 'Akhir Kontrak' dengan tanggal hari ini ({date.today().strftime('%Y-%m-%d')}).
+    4. Berikan jawaban yang ramah, profesional, dan dalam bahasa Indonesia.
     """
 
     # Inisialisasi Chat History
@@ -2425,7 +2437,7 @@ if menu_pilihan == "🤖 AI HR Assistant":
                 "role": "assistant",
                 "content": (
                     f"Halo! Saya AI HR Assistant. Saya telah membaca seluruh"
-                    f" database ({len(df_emp)} Record Karyawan) secara lengkap mencakup ID, Posisi, Cost Center, Masa Kontrak, Site, hingga seluruh variasi Status (Aktif, Resign, Promote to CJ, dll). Silakan tanyakan apa saja!"
+                    f" database ({len(df_emp)} Record Karyawan) secara lengkap mencakup ID, Posisi, Cost Center, Masa Kontrak, Site, hingga seluruh isi kolom Status. Silakan tanyakan apa saja!"
                 ),
             }
         ]
@@ -2437,14 +2449,14 @@ if menu_pilihan == "🤖 AI HR Assistant":
 
     # Input User
     if prompt := st.chat_input(
-        "Tanyakan sesuatu (misal: 'Berapa jumlah karyawan status Promote to CJ?')..."
+        "Tanyakan sesuatu (misal: 'Berapa yang promote to cj di kolom status?')..."
     ):
         st.session_state.chat_messages.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
 
         with st.chat_message("assistant"):
-            with st.spinner("Menganalisis kolom status dan seluruh data..."):
+            with st.spinner("Membaca CSV dan menganalisis kolom status..."):
                 try:
                     api_messages = [
                         {"role": "system", "content": system_prompt_context}
