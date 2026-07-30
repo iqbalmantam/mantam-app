@@ -20,13 +20,15 @@ st.set_page_config(
 
 ADMIN_PIN = "2273"  # PIN Rahasia Admin / HR
 
-# Custom CSS: Sembunyikan Header & Anti Copy-Paste
+# Custom CSS & Security Rules (Anti Copy-Paste, Anti Print-Screen, Watermark)
 st.markdown(
     """
     <style>
     header[data-testid="stHeader"] { visibility: hidden; height: 0%; }
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
+    
+    /* Anti-Select / Anti Copy-Paste Text */
     body, div, p, span, h1, h2, h3, label {
         -webkit-user-select: none;
         -moz-user-select: none;
@@ -39,12 +41,33 @@ st.markdown(
         -ms-user-select: text !important;
         user-select: text !important;
     }
+    
+    /* Sembunyikan elemen navigasi saat mode Print/Save PDF */
     @media print {
         header, footer, .stButton, .stSelectbox, .stTextInput, .stExpander {
             display: none !important;
         }
     }
     </style>
+
+    <script>
+    // 1. Kosongkan clipboard jika kandidat menekan tombol PrintScreen
+    document.addEventListener('keyup', function(e) {
+        if (e.key === 'PrintScreen') {
+            navigator.clipboard.writeText('');
+            alert('⚠️ Fitur screenshot dilarang selama sesi ujian berlangsung!');
+        }
+    });
+
+    // 2. Efek Blur otomatis jika kandidat berpindah tab / Alt-Tab
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            document.body.style.filter = 'blur(12px)';
+        } else {
+            document.body.style.filter = 'none';
+        }
+    });
+    </script>
     """,
     unsafe_allow_html=True,
 )
@@ -352,7 +375,7 @@ SJT_BANK = [
 ]
 
 # ==========================================
-# 3. HELPER FUNCTIONS & ALGORITMA
+# 3. HELPER FUNCTIONS & ALGORITMA IRT
 # ==========================================
 
 def irt_3pl(theta, a, b, c):
@@ -447,6 +470,7 @@ def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
                     "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     "Nama": cand.get("name", "N/A"),
                     "Email": cand.get("email", "N/A"),
+                    "Level_Jabatan": cand.get("level", "N/A"),
                     "Posisi": cand.get("position", "N/A"),
                     "Pengalaman": cand.get("exp", 0),
                     "Skor_Theta": round(theta, 2),
@@ -475,7 +499,7 @@ def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
 # 4. USER INTERFACE FLOW
 # ==========================================
 
-# Guard jika waktu 30 menit sudah habis
+# Guard jika waktu 30 menit telah habis
 if st.session_state.test_started and not st.session_state.test_finished:
     elapsed_time = time.time() - st.session_state.start_time
     if elapsed_time >= TOTAL_TIME_SECONDS:
@@ -485,7 +509,7 @@ if st.session_state.test_started and not st.session_state.test_finished:
 st.title("🛡️ System Asesmen General Kandidat")
 st.caption("Standardized Adaptive Testing & Behavioral Competency Evaluation System")
 
-# --- PHASE 1: REGISTRASI & AKSES ADMIN DI HALAMAN AWAL ---
+# --- PHASE 1: REGISTRASI & MODE ADMIN DI HALAMAN AWAL ---
 if not st.session_state.test_started and not st.session_state.test_finished:
     
     # 🔐 AKSES KONTROL REKAP LAPORAN (UNTUK ADMIN/HR DI HALAMAN AWAL)
@@ -502,7 +526,7 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                 st.subheader("🔍 Detail & Summary Penilaian Kandidat")
 
                 if not df_results.empty:
-                    # Membuat daftar pilihan kandidat (Nama + Email + Timestamp)
+                    # Label unik gabungan Nama, Email, & Waktu
                     df_results["Select_Label"] = (
                         df_results["Nama"].astype(str)
                         + " | "
@@ -515,17 +539,16 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                     selected_candidate_label = st.selectbox(
                         "Pilih Kandidat untuk Melihat Summary Penilaian:",
                         options=df_results["Select_Label"].tolist(),
-                        index=len(df_results) - 1,  # Default pilih yang paling baru
+                        index=len(df_results) - 1,  # Default: Paling baru
                     )
 
-                    # Ambil baris kandidat yang dipilih
                     cand_data = df_results[
                         df_results["Select_Label"] == selected_candidate_label
                     ].iloc[0]
 
                     st.markdown("### 📄 Executive Summary Laporan Kandidat")
 
-                    # Tombol Save / Print to PDF
+                    # Tombol Cetak / Save to PDF
                     components.html(
                         """
                         <button onclick="window.print()" style="
@@ -547,9 +570,10 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 
                     st.write(f"**Nama Lengkap:** {cand_data.get('Nama', '-')}")
                     st.write(f"**Email:** {cand_data.get('Email', '-')}")
-                    st.write(f"**Posisi Dilamar:** {cand_data.get('Posisi', '-')}")
+                    st.write(f"**Level Jabatan:** {cand_data.get('Level_Jabatan', '-')}")
+                    st.write(f"**Posisi/Divisi:** {cand_data.get('Posisi', '-')}")
                     st.write(f"**Pengalaman:** {cand_data.get('Pengalaman', 0)} Tahun")
-                    st.write(f"**Waktu Tes:** {cand_data.get('Timestamp', '-')}")
+                    st.write(f"**Waktu Ujian:** {cand_data.get('Timestamp', '-')}")
 
                     st.markdown("---")
 
@@ -572,7 +596,6 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                     st.markdown("---")
                     st.subheader("📊 Profil Radar Kompetensi Perilaku (SJT)")
 
-                    # Menyiapkan Skor Radar
                     comp_dimensions = [
                         "Leadership",
                         "Stress_Tolerance",
@@ -584,7 +607,7 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                         float(cand_data.get(dim, 0)) for dim in comp_dimensions
                     ]
 
-                    # Menutup lingkaran Radar Chart
+                    # Tutup lingkaran radar
                     comp_dimensions.append(comp_dimensions[0])
                     comp_values.append(comp_values[0])
 
@@ -642,15 +665,25 @@ if not st.session_state.test_started and not st.session_state.test_finished:
         with col1:
             fullname = st.text_input("Nama Lengkap*")
             email = st.text_input("Email Profesional*")
+            level = st.selectbox(
+                "Level Jabatan*",
+                [
+                    "Staf / Officer",
+                    "Supervisor / Team Lead",
+                    "Manager / Head",
+                    "Executive / General Management",
+                ],
+            )
         with col2:
             position = st.selectbox(
-                "Posisi Dilamar*",
+                "Posisi / Divisi Dilamar*",
                 [
-                    "General Management",
-                    "Software Engineer",
+                    "Operations, HR & Admin",
+                    "Software Engineering & IT",
                     "Data & Analytics",
-                    "Operations & Logistics",
-                    "Finance & Strategy",
+                    "Finance, Accounting & Strategy",
+                    "Sales & Marketing",
+                    "General Management / Business Unit",
                 ],
             )
             experience = st.slider("Pengalaman Kerja (Tahun)", 0, 20, 3)
@@ -668,6 +701,7 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                 st.session_state.candidate_info = {
                     "name": fullname,
                     "email": email,
+                    "level": level,
                     "position": position,
                     "exp": experience,
                 }
@@ -681,6 +715,14 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 elif st.session_state.test_started and not st.session_state.test_finished:
     render_timer()
 
+    # Watermark Transparan Nama Kandidat
+    cand_name = st.session_state.candidate_info.get("name", "Kandidat")
+    st.markdown(
+        f"<div style='position: fixed; top: 35%; left: 15%; font-size: 38px; color: rgba(180, 180, 180, 0.12); transform: rotate(-30deg); pointer-events: none; z-index: 9999; font-weight: bold;'>"
+        f"CONFIDENTIAL - {cand_name.upper()}</div>",
+        unsafe_allow_html=True,
+    )
+
     total_expected_steps = MAX_COG_QUESTIONS + len(SJT_BANK)
     current_step = st.session_state.cog_step + len(st.session_state.sjt_responses)
     st.progress(min(current_step / total_expected_steps, 1.0))
@@ -689,6 +731,7 @@ elif st.session_state.test_started and not st.session_state.test_finished:
     if st.session_state.cog_step < MAX_COG_QUESTIONS:
         next_q = get_next_question(st.session_state.theta, st.session_state.used_cog_ids)
         if next_q:
+            st.session_state.used_cog_ids.add(next_q["id"])  # Aman dari bug pengulangan
             st.markdown(
                 f"### Bagian 1: Penalaran Kognitif (Soal {st.session_state.cog_step + 1} dari {MAX_COG_QUESTIONS})"
             )
@@ -708,7 +751,6 @@ elif st.session_state.test_started and not st.session_state.test_finished:
                         st.warning("⚠️ Harap pilih salah satu jawaban terlebih dahulu.")
                     else:
                         is_correct = 1 if user_ans == next_q["ans"] else 0
-                        st.session_state.used_cog_ids.add(next_q["id"])
                         st.session_state.cog_history.append(
                             {
                                 "a": next_q["a"],
