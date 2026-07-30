@@ -8,19 +8,22 @@ import plotly.graph_objects as go
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 
-# ReportLab & Flowables
+# ReportLab Core & Flowables
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import (
     HRFlowable,
-    Image,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
     Table,
     TableStyle,
 )
+
+# ReportLab Drawing & Spider (Radar) Chart Engine (Tanpa Kaleido/Plotly Export)
+from reportlab.graphics.shapes import Drawing, String
+from reportlab.graphics.charts.spider import SpiderChart
 
 # ==========================================
 # 1. CONFIG & SESSION STATE INITIALIZATION
@@ -534,7 +537,36 @@ def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
         return False
 
 # ==========================================
-# GENERATE PDF REPORT ENGINE (WITH RADAR CHART)
+# GENERATE RADAR DRAWING (NATIVE REPORTLAB)
+# ==========================================
+def draw_reportlab_radar(labels, values, max_val=40):
+    d = Drawing(220, 180)
+    chart = SpiderChart()
+    chart.x = 25
+    chart.y = 20
+    chart.width = 170
+    chart.height = 140
+    chart.data = [values]
+    chart.labels = labels
+    
+    # Custom Styling
+    chart.strands[0].strokeColor = colors.HexColor('#0F52BA')
+    chart.strands[0].fillColor = colors.HexColor('#0F52BA33')
+    chart.strands[0].strokeWidth = 2
+    
+    chart.strandLabels.fontName = 'Helvetica'
+    chart.strandLabels.fontSize = 7
+    chart.strandLabels.fontColor = colors.HexColor('#333333')
+    
+    # Skala Otomatis
+    chart.spokes.strokeColor = colors.HexColor('#CBD5E1')
+    chart.spokes.strokeWidth = 0.5
+    
+    d.add(chart)
+    return d
+
+# ==========================================
+# GENERATE PDF REPORT ENGINE
 # ==========================================
 def generate_candidate_pdf(cand_data):
     buffer = io.BytesIO()
@@ -651,36 +683,18 @@ def generate_candidate_pdf(cand_data):
     story.append(t_metrics)
     story.append(Spacer(1, 8))
 
-    # 4. Generate & Export Gambar Radar Chart
-    comp_dimensions = ["Leadership", "Stress_Tolerance", "Execution", "Integrity", "Strategic_Thinking"]
-    comp_values = [float(cand_data.get(dim, 0)) for dim in comp_dimensions]
-    comp_dimensions.append(comp_dimensions[0])
-    comp_values.append(comp_values[0])
-    max_radar_val = max(max(comp_values), 10)
+    # 4. Generate Radar Chart Vektor (Native ReportLab Engine)
+    labels = ["Leadership", "Stress Tol.", "Execution", "Integrity", "Strategic"]
+    raw_vals = [
+        float(cand_data.get('Leadership', 0)),
+        float(cand_data.get('Stress_Tolerance', 0)),
+        float(cand_data.get('Execution', 0)),
+        float(cand_data.get('Integrity', 0)),
+        float(cand_data.get('Strategic_Thinking', 0))
+    ]
+    radar_drawing = draw_reportlab_radar(labels, raw_vals)
 
-    fig = go.Figure(data=go.Scatterpolar(
-        r=comp_values, theta=comp_dimensions, fill="toself",
-        line=dict(color="#0F52BA", width=2), fillcolor="rgba(15, 82, 186, 0.25)"
-    ))
-    fig.update_layout(
-        paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF",
-        polar=dict(
-            bgcolor="#FFFFFF",
-            radialaxis=dict(visible=True, range=[0, max_radar_val], color="#666666", gridcolor="#E2E8F0"),
-            angularaxis=dict(color="#333333", gridcolor="#E2E8F0")
-        ),
-        showlegend=False, margin=dict(l=40, r=40, t=20, b=20),
-        width=300, height=220
-    )
-
-    try:
-        img_bytes = fig.to_image(format="png", engine="kaleido")
-        img_buffer = io.BytesIO(img_bytes)
-        radar_img = Image(img_buffer, width=220, height=160)
-    except Exception:
-        radar_img = Paragraph("<font color='red'>[Grafik Radar tidak dapat dimuat]</font>", body_style)
-
-    # 5. Tabel SJT Samping-Sampingan dengan Grafik Radar
+    # 5. Tabel SJT Samping-Sampingan dengan Radar Vektor
     story.append(Paragraph("📊 Profil Kompetensi Perilaku (SJT)", h2_style))
     
     sjt_table_data = [
@@ -703,7 +717,7 @@ def generate_candidate_pdf(cand_data):
         ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
     ]))
 
-    side_by_side_table = Table([[t_sjt, radar_img]], colWidths=[270, 250])
+    side_by_side_table = Table([[t_sjt, radar_drawing]], colWidths=[270, 250])
     side_by_side_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('ALIGN', (1,0), (1,0), 'CENTER'),
