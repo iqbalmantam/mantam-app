@@ -20,7 +20,7 @@ st.set_page_config(
 
 ADMIN_PIN = "2273"  # PIN Rahasia Admin / HR
 
-# Custom CSS (Sembunyikan Header, Footer, Anti Copy-Paste, & Stiling Cetak PDF)
+# Custom CSS & Styling Khusus Mode Cetak PDF
 st.markdown(
     """
     <style>
@@ -42,10 +42,18 @@ st.markdown(
         user-select: text !important;
     }
     
-    /* Sembunyikan elemen navigasi saat mode Print/Save PDF */
+    /* ATURAN KHUSUS CETAK PDF / PRINT */
     @media print {
-        header, footer, .stButton, .stSelectbox, .stTextInput, .stExpander {
+        /* Sembunyikan elemen navigasi & input saja */
+        header, footer, .stButton, .stSelectbox, .stTextInput, iframe {
             display: none !important;
+        }
+        /* Pastikan isi Expander tetap terbuka & terlihat jelas saat diprint */
+        div[data-testid="stExpander"] {
+            border: none !important;
+        }
+        div[data-testid="stExpanderDetails"] {
+            display: block !important;
         }
     }
     </style>
@@ -213,6 +221,56 @@ COGNITIVE_BANK = [
         "q": "Jika implikasi (p ➔ q) bernilai Salah, dan disjungsi (q ∨ r) bernilai Benar, manakah urutan nilai kebenaran dari p, q, dan r yang benar secara berurutan?",
         "opts": ["A. Benar, Salah, Benar", "B. Benar, Benar, Salah", "C. Salah, Salah, Benar", "D. Benar, Salah, Salah"],
         "ans": "A. Benar, Salah, Benar",
+    },
+    {
+        "id": "C16",
+        "category": "Business Acumen & Valuation",
+        "a": 2.2, "b": 1.4, "c": 0.20,
+        "q": "Sebuah unit bisnis mencatatkan Revenue Rp 10 Miliar dengan EBITDA Margin 20%. Jika valuasi bisnis didasarkan pada multiple 8x EBITDA, berapa nilai estimasi Enterprise Value (EV) bisnis tersebut?",
+        "opts": ["A. Rp 12 Miliar", "B. Rp 16 Miliar", "C. Rp 20 Miliar", "D. Rp 24 Miliar"],
+        "ans": "B. Rp 16 Miliar",
+    },
+    {
+        "id": "C17",
+        "category": "Financial Decision Making",
+        "a": 2.1, "b": 1.6, "c": 0.20,
+        "q": "Proyek A membutuhkan belanja modal (CAPEX) awal Rp 500 Juta dan menghasilkan Arus Kas Masuk Netto Rp 150 Juta/tahun selama 4 tahun. Berapa Payback Period untuk investasi ini?",
+        "opts": ["A. 2.8 Tahun", "B. 3.3 Tahun", "C. 3.5 Tahun", "D. 4.0 Tahun"],
+        "ans": "B. 3.3 Tahun",
+    },
+    {
+        "id": "C18",
+        "category": "Strategic Logic & Game Theory",
+        "a": 2.5, "b": 2.1, "c": 0.20,
+        "q": "Jika Perusahaan A menurunkan harga produk sebesar 10%, kompetitor B dipastikan akan menurunkan harga sebesar 15%. Jika elastisitas permintaan pasar bersifat inelastis (< 1), apa dampak jangka panjang bagi total pendapatan industri?",
+        "opts": [
+            "A. Total pendapatan industri akan meningkat tajam",
+            "B. Total pendapatan industri akan menurun",
+            "C. Pendapatan industri tetap stabil tanpa perubahan",
+            "D. Laba bersih kompetitor B akan berlipat ganda",
+        ],
+        "ans": "B. Total pendapatan industri akan menurun",
+    },
+    {
+        "id": "C19",
+        "category": "Data-Driven Risk Analytics",
+        "a": 2.3, "b": 1.9, "c": 0.20,
+        "q": "Dalam analisis risiko operasional, sebuah proyek memiliki 30% peluang kegagalan dengan potensi kerugian Rp 1 Miliar, dan 70% peluang sukses dengan potensi keuntungan Rp 500 Juta. Berapa nilai Harapan Moneter (Expected Monetary Value / EMV) dari proyek tersebut?",
+        "opts": ["A. + Rp 50 Juta", "B. + Rp 150 Juta", "C. + Rp 200 Juta", "D. - Rp 50 Juta"],
+        "ans": "A. + Rp 50 Juta",
+    },
+    {
+        "id": "C20",
+        "category": "Strategic Resource Allocation",
+        "a": 2.0, "b": 1.1, "c": 0.20,
+        "q": "Divisi X menghasilkan Margin Kontribusi 40% sedangkan Divisi Y menghasilkan Margin Kontribusi 25%. Jika kapasitas produksi terbatas, divisi mana yang secara ekonomis harus diprioritaskan untuk pemenuhan pesanan tambahan?",
+        "opts": [
+            "A. Divisi Y karena margin lebih rendah butuh volume",
+            "B. Divisi X karena memberikan profitabilitas per unit lebih tinggi",
+            "C. Keduanya diberi alokasi 50:50 demi keadilan",
+            "D. Tidak bisa ditentukan tanpa data biaya tetap (fixed cost)",
+        ],
+        "ans": "B. Divisi X karena memberikan profitabilitas per unit lebih tinggi",
     },
 ]
 
@@ -528,10 +586,10 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 
                     st.markdown("### 📄 Executive Summary Laporan Kandidat")
 
-                    # Tombol Cetak / Save to PDF
+                    # Perbaikan Panggilan Print: window.parent.print() agar mencetak seluruh dokumen utama
                     components.html(
                         """
-                        <button onclick="window.print()" style="
+                        <button onclick="window.parent.print()" style="
                             background-color: #0F52BA;
                             color: white;
                             border: none;
