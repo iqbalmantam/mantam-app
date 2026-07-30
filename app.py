@@ -20,7 +20,7 @@ st.set_page_config(
 
 ADMIN_PIN = "2273"  # PIN Rahasia Admin / HR
 
-# Custom CSS & Security Rules (Anti Copy-Paste, Anti Print-Screen, Watermark)
+# Custom CSS (Sembunyikan Header, Footer, Anti Copy-Paste, & Stiling Cetak PDF)
 st.markdown(
     """
     <style>
@@ -49,25 +49,6 @@ st.markdown(
         }
     }
     </style>
-
-    <script>
-    // 1. Kosongkan clipboard jika kandidat menekan tombol PrintScreen
-    document.addEventListener('keyup', function(e) {
-        if (e.key === 'PrintScreen') {
-            navigator.clipboard.writeText('');
-            alert('⚠️ Fitur screenshot dilarang selama sesi ujian berlangsung!');
-        }
-    });
-
-    // 2. Efek Blur otomatis jika kandidat berpindah tab / Alt-Tab
-    document.addEventListener('visibilitychange', function() {
-        if (document.hidden) {
-            document.body.style.filter = 'blur(12px)';
-        } else {
-            document.body.style.filter = 'none';
-        }
-    });
-    </script>
     """,
     unsafe_allow_html=True,
 )
@@ -526,7 +507,6 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                 st.subheader("🔍 Detail & Summary Penilaian Kandidat")
 
                 if not df_results.empty:
-                    # Label unik gabungan Nama, Email, & Waktu
                     df_results["Select_Label"] = (
                         df_results["Nama"].astype(str)
                         + " | "
@@ -539,7 +519,7 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                     selected_candidate_label = st.selectbox(
                         "Pilih Kandidat untuk Melihat Summary Penilaian:",
                         options=df_results["Select_Label"].tolist(),
-                        index=len(df_results) - 1,  # Default: Paling baru
+                        index=len(df_results) - 1,
                     )
 
                     cand_data = df_results[
@@ -607,7 +587,6 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                         float(cand_data.get(dim, 0)) for dim in comp_dimensions
                     ]
 
-                    # Tutup lingkaran radar
                     comp_dimensions.append(comp_dimensions[0])
                     comp_values.append(comp_values[0])
 
@@ -715,14 +694,6 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 elif st.session_state.test_started and not st.session_state.test_finished:
     render_timer()
 
-    # Watermark Transparan Nama Kandidat
-    cand_name = st.session_state.candidate_info.get("name", "Kandidat")
-    st.markdown(
-        f"<div style='position: fixed; top: 35%; left: 15%; font-size: 38px; color: rgba(180, 180, 180, 0.12); transform: rotate(-30deg); pointer-events: none; z-index: 9999; font-weight: bold;'>"
-        f"CONFIDENTIAL - {cand_name.upper()}</div>",
-        unsafe_allow_html=True,
-    )
-
     total_expected_steps = MAX_COG_QUESTIONS + len(SJT_BANK)
     current_step = st.session_state.cog_step + len(st.session_state.sjt_responses)
     st.progress(min(current_step / total_expected_steps, 1.0))
@@ -731,7 +702,7 @@ elif st.session_state.test_started and not st.session_state.test_finished:
     if st.session_state.cog_step < MAX_COG_QUESTIONS:
         next_q = get_next_question(st.session_state.theta, st.session_state.used_cog_ids)
         if next_q:
-            st.session_state.used_cog_ids.add(next_q["id"])  # Aman dari bug pengulangan
+            st.session_state.used_cog_ids.add(next_q["id"])
             st.markdown(
                 f"### Bagian 1: Penalaran Kognitif (Soal {st.session_state.cog_step + 1} dari {MAX_COG_QUESTIONS})"
             )
