@@ -21,7 +21,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-# ReportLab Drawing & Spider (Radar) Chart Engine (Tanpa Kaleido/Plotly Export)
+# ReportLab Drawing & Spider (Radar) Chart Engine
 from reportlab.graphics.shapes import Drawing, String
 from reportlab.graphics.charts.spider import SpiderChart
 
@@ -539,7 +539,7 @@ def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
 # ==========================================
 # GENERATE RADAR DRAWING (NATIVE REPORTLAB)
 # ==========================================
-def draw_reportlab_radar(labels, values, max_val=40):
+def draw_reportlab_radar(labels, values):
     d = Drawing(220, 180)
     chart = SpiderChart()
     chart.x = 25
@@ -554,11 +554,12 @@ def draw_reportlab_radar(labels, values, max_val=40):
     chart.strands[0].fillColor = colors.HexColor('#0F52BA33')
     chart.strands[0].strokeWidth = 2
     
+    # PERBAIKAN: Gunakan fillColor untuk warna font label
     chart.strandLabels.fontName = 'Helvetica'
     chart.strandLabels.fontSize = 7
-    chart.strandLabels.fontColor = colors.HexColor('#333333')
+    chart.strandLabels.fillColor = colors.HexColor('#333333')
     
-    # Skala Otomatis
+    # Skala Otomatis Spoke
     chart.spokes.strokeColor = colors.HexColor('#CBD5E1')
     chart.spokes.strokeWidth = 0.5
     
