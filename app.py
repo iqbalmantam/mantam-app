@@ -20,7 +20,7 @@ st.set_page_config(
 
 ADMIN_PIN = "2273"  # PIN Rahasia Admin / HR
 
-# Custom CSS & Styling Khusus Mode Cetak PDF
+# Custom CSS & Styling Khusus Mode Cetak PDF (Isolasi Total DOM)
 st.markdown(
     """
     <style>
@@ -43,46 +43,36 @@ st.markdown(
     }
     
     /* ==========================================
-       ATURAN KHUSUS CETAK PDF / PRINT
+       ISOLASI TOTAL UNTUK METODE CETAK PRINT/PDF
        ========================================== */
     @media print {
-        /* 1. Latar belakang putih bersih */
-        html, body, [data-testid="stAppViewContainer"], .main, .stApp {
+        /* Sembunyikan seluruh elemen di body */
+        body * {
+            visibility: hidden !important;
+        }
+
+        /* Tampilkan HANYA area laporan kandidat & anak-anak elemennya */
+        #report-printable-area, #report-printable-area * {
+            visibility: visible !important;
+        }
+
+        /* Posisikan laporan di paling atas kertas cetak */
+        #report-printable-area {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
             background-color: #ffffff !important;
             color: #000000 !important;
         }
 
-        /* 2. Sembunyikan elemen luar: Header, Title, Form Registrasi, Footer, Tombol, dsb */
-        header, footer, .stButton, .stSelectbox, .stTextInput, iframe, 
-        div[data-testid="stDataFrame"], 
-        div[data-testid="stForm"],
-        div[data-testid="stExpanderSummary"],
-        .stAlert, summary, h1, hr {
+        /* Sembunyikan tombol print iframe saat diprint */
+        iframe {
             display: none !important;
         }
 
-        /* Sembunyikan khusus elemen setelah expander admin (Formulir Kandidat) */
-        .report-hide-on-print {
-            display: none !important;
-        }
-
-        /* 3. Hilangkan bingkai/border expander */
-        div[data-testid="stExpander"] {
-            border: none !important;
-            box-shadow: none !important;
-            background: transparent !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-
-        /* 4. Tampilkan isi laporan secara utuh */
-        div[data-testid="stExpanderDetails"] {
-            display: block !important;
-            padding: 0 !important;
-        }
-
-        /* 5. Paksa teks di dalam laporan berwarna hitam */
-        div[data-testid="stExpanderDetails"] * {
+        /* Paksa teks di dalam laporan berwarna hitam */
+        #report-printable-area * {
             color: #000000 !important;
         }
     }
@@ -614,6 +604,11 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                         df_results["Select_Label"] == selected_candidate_label
                     ].iloc[0]
 
+                    # -----------------------------------------------------------------
+                    # ISOLASI WRAPPER DENGAN ID #report-printable-area UNTUK PRINT PDF
+                    # -----------------------------------------------------------------
+                    st.markdown('<div id="report-printable-area">', unsafe_allow_html=True)
+
                     st.markdown("### 📄 Executive Summary Laporan Kandidat")
 
                     components.html(
@@ -679,7 +674,7 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 
                     max_radar_val = max(max(comp_values), 10)
 
-                    # PERBAIKAN GRAFIK PLOTLY: Background dibuat transparan & garis dibuat kontras
+                    # PERBAIKAN GRAFIK PLOTLY: Background transparan total & garis kontras
                     fig_cand = go.Figure(
                         data=go.Scatterpolar(
                             r=comp_values, 
@@ -725,6 +720,8 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                         st.caption(
                             "Hasil tes ini bersifat rahasia dan dikalkulasi secara otomatis menggunakan pemodelan Item Response Theory (IRT)."
                         )
+
+                    st.markdown('</div>', unsafe_allow_html=True)
                 else:
                     st.info("Belum ada data kandidat yang tersimpan.")
 
@@ -733,9 +730,8 @@ if not st.session_state.test_started and not st.session_state.test_finished:
         elif admin_input != "":
             st.error("❌ PIN Salah. Akses Ditolak.")
 
-    # PEMBUNGKUS KHUSUS UNTUK MEMASTIKAN FORM KANDIDAT SEMBUNYI SAAT PRINT
-    st.markdown('<div class="report-hide-on-print">', unsafe_allow_html=True)
     st.markdown("---")
+
     st.subheader("Formulir Data Diri Kandidat")
     with st.form("reg_form"):
         col1, col2 = st.columns(2)
@@ -787,7 +783,6 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                 st.rerun()
             else:
                 st.error("Mohon lengkapi semua kolom wajib.")
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- PHASE 2: PENGERJAAN TES ---
 elif st.session_state.test_started and not st.session_state.test_finished:
@@ -913,7 +908,6 @@ elif st.session_state.test_finished:
     )
 
 # --- FOOTER ---
-st.markdown('<div class="report-hide-on-print">', unsafe_allow_html=True)
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #888888; font-size: 13px; font-weight: 500;'>"
@@ -921,4 +915,3 @@ st.markdown(
     "</div>",
     unsafe_allow_html=True,
 )
-st.markdown('</div>', unsafe_allow_html=True)
