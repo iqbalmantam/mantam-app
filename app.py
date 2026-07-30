@@ -8,12 +8,13 @@ import plotly.graph_objects as go
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 
-# ReportLab Imports untuk Generate File PDF Asli
+# ReportLab & Flowables
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import (
     HRFlowable,
+    Image,
     Paragraph,
     SimpleDocTemplate,
     Spacer,
@@ -533,7 +534,7 @@ def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
         return False
 
 # ==========================================
-# GENERATE PDF REPORT ENGINE (REPORTLAB)
+# GENERATE PDF REPORT ENGINE (WITH RADAR CHART)
 # ==========================================
 def generate_candidate_pdf(cand_data):
     buffer = io.BytesIO()
@@ -552,38 +553,38 @@ def generate_candidate_pdf(cand_data):
         'DocTitle',
         parent=styles['Heading1'],
         fontName='Helvetica-Bold',
-        fontSize=20,
-        leading=24,
+        fontSize=18,
+        leading=22,
         textColor=colors.HexColor('#0F52BA'),
-        spaceAfter=6
+        spaceAfter=4
     )
     
     subtitle_style = ParagraphStyle(
         'DocSubTitle',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=10,
+        fontSize=9,
         textColor=colors.HexColor('#555555'),
-        spaceAfter=15
+        spaceAfter=10
     )
 
     h2_style = ParagraphStyle(
         'SectionHeading',
         parent=styles['Heading2'],
         fontName='Helvetica-Bold',
-        fontSize=13,
-        leading=16,
+        fontSize=11,
+        leading=14,
         textColor=colors.HexColor('#1E293B'),
-        spaceBefore=12,
-        spaceAfter=8
+        spaceBefore=8,
+        spaceAfter=6
     )
 
     body_style = ParagraphStyle(
         'BodyTextCustom',
         parent=styles['Normal'],
         fontName='Helvetica',
-        fontSize=10,
-        leading=14,
+        fontSize=9,
+        leading=12,
         textColor=colors.HexColor('#333333')
     )
 
@@ -596,110 +597,134 @@ def generate_candidate_pdf(cand_data):
 
     story = []
 
-    # Header Dokumen
+    # 1. Header Dokumen
     story.append(Paragraph("Executive Candidate Assessment Report", title_style))
     story.append(Paragraph("Standardized Adaptive Testing & Behavioral Competency Evaluation", subtitle_style))
-    story.append(HRFlowable(width="100%", thickness=2, color=colors.HexColor('#0F52BA'), spaceAfter=15))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#0F52BA'), spaceAfter=10))
 
-    # Informasi Kandidat
+    # 2. Data Diri Kandidat
     story.append(Paragraph("📌 Data Diri Kandidat", h2_style))
-    
     info_table_data = [
-        [Paragraph("Nama Lengkap:", bold_label_style), Paragraph(str(cand_data.get('Nama', '-')), body_style)],
-        [Paragraph("Email Profesional:", bold_label_style), Paragraph(str(cand_data.get('Email', '-')), body_style)],
-        [Paragraph("Level Jabatan:", bold_label_style), Paragraph(str(cand_data.get('Level_Jabatan', '-')), body_style)],
-        [Paragraph("Posisi / Divisi:", bold_label_style), Paragraph(str(cand_data.get('Posisi', '-')), body_style)],
-        [Paragraph("Pengalaman Kerja:", bold_label_style), Paragraph(f"{cand_data.get('Pengalaman', 0)} Tahun", body_style)],
-        [Paragraph("Waktu Ujian:", bold_label_style), Paragraph(str(cand_data.get('Timestamp', '-')), body_style)],
+        [Paragraph("Nama Lengkap:", bold_label_style), Paragraph(str(cand_data.get('Nama', '-')), body_style),
+         Paragraph("Level Jabatan:", bold_label_style), Paragraph(str(cand_data.get('Level_Jabatan', '-')), body_style)],
+        [Paragraph("Email Profesional:", bold_label_style), Paragraph(str(cand_data.get('Email', '-')), body_style),
+         Paragraph("Posisi / Divisi:", bold_label_style), Paragraph(str(cand_data.get('Posisi', '-')), body_style)],
+        [Paragraph("Pengalaman Kerja:", bold_label_style), Paragraph(f"{cand_data.get('Pengalaman', 0)} Tahun", body_style),
+         Paragraph("Waktu Ujian:", bold_label_style), Paragraph(str(cand_data.get('Timestamp', '-')), body_style)],
     ]
-
-    t_info = Table(info_table_data, colWidths=[130, 390])
+    t_info = Table(info_table_data, colWidths=[110, 150, 100, 160])
     t_info.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,-1), colors.HexColor('#F8FAFC')),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+        ('RIGHTPADDING', (0,0), (-1,-1), 6),
         ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
         ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#F1F5F9')),
     ]))
     story.append(t_info)
-    story.append(Spacer(1, 15))
+    story.append(Spacer(1, 8))
 
-    # Ringkasan Skor Kognitif (Metrics Box)
-    story.append(Paragraph("🧠 Ringkasan Evaluasi Kognitif (IRT)", h2_style))
-    
+    # 3. Kognitif Metrics
+    story.append(Paragraph("🧠 Evaluasi Kognitif (IRT)", h2_style))
     theta_val = float(cand_data.get('Skor_Theta', 0))
     iq_val = str(cand_data.get('Estimasi_IQ', '-'))
     fit_val = str(cand_data.get('Status_Kesesuaian', '-'))
 
     metrics_table_data = [
-        [
-            Paragraph("Skor Theta (Ability)", bold_label_style),
-            Paragraph("Estimasi IQ", bold_label_style),
-            Paragraph("Status Kesesuaian", bold_label_style)
-        ],
-        [
-            Paragraph(f"<font size=14 color='#0F52BA'><b>{theta_val:+.2f}</b></font>", body_style),
-            Paragraph(f"<font size=14 color='#0F52BA'><b>IQ ~{iq_val}</b></font>", body_style),
-            Paragraph(f"<font size=14 color='#0F52BA'><b>{fit_val}</b></font>", body_style)
-        ]
+        [Paragraph("Skor Theta (Ability)", bold_label_style), Paragraph("Estimasi IQ", bold_label_style), Paragraph("Status Kesesuaian", bold_label_style)],
+        [Paragraph(f"<font size=12 color='#0F52BA'><b>{theta_val:+.2f}</b></font>", body_style),
+         Paragraph(f"<font size=12 color='#0F52BA'><b>IQ ~{iq_val}</b></font>", body_style),
+         Paragraph(f"<font size=12 color='#0F52BA'><b>{fit_val}</b></font>", body_style)]
     ]
-
     t_metrics = Table(metrics_table_data, colWidths=[173, 173, 174])
     t_metrics.setStyle(TableStyle([
         ('ALIGN', (0,0), (-1,-1), 'CENTER'),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#EFF6FF')),
-        ('BACKGROUND', (0,1), (-1,1), colors.HexColor('#FFFFFF')),
         ('BOX', (0,0), (-1,-1), 1, colors.HexColor('#BFDBFE')),
         ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
-        ('TOPPADDING', (0,0), (-1,-1), 8),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('TOPPADDING', (0,0), (-1,-1), 6),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
     ]))
     story.append(t_metrics)
-    story.append(Spacer(1, 15))
+    story.append(Spacer(1, 8))
 
-    # Skor Kompetensi Perilaku (SJT)
+    # 4. Generate & Export Gambar Radar Chart
+    comp_dimensions = ["Leadership", "Stress_Tolerance", "Execution", "Integrity", "Strategic_Thinking"]
+    comp_values = [float(cand_data.get(dim, 0)) for dim in comp_dimensions]
+    comp_dimensions.append(comp_dimensions[0])
+    comp_values.append(comp_values[0])
+    max_radar_val = max(max(comp_values), 10)
+
+    fig = go.Figure(data=go.Scatterpolar(
+        r=comp_values, theta=comp_dimensions, fill="toself",
+        line=dict(color="#0F52BA", width=2), fillcolor="rgba(15, 82, 186, 0.25)"
+    ))
+    fig.update_layout(
+        paper_bgcolor="#FFFFFF", plot_bgcolor="#FFFFFF",
+        polar=dict(
+            bgcolor="#FFFFFF",
+            radialaxis=dict(visible=True, range=[0, max_radar_val], color="#666666", gridcolor="#E2E8F0"),
+            angularaxis=dict(color="#333333", gridcolor="#E2E8F0")
+        ),
+        showlegend=False, margin=dict(l=40, r=40, t=20, b=20),
+        width=300, height=220
+    )
+
+    try:
+        img_bytes = fig.to_image(format="png", engine="kaleido")
+        img_buffer = io.BytesIO(img_bytes)
+        radar_img = Image(img_buffer, width=220, height=160)
+    except Exception:
+        radar_img = Paragraph("<font color='red'>[Grafik Radar tidak dapat dimuat]</font>", body_style)
+
+    # 5. Tabel SJT Samping-Sampingan dengan Grafik Radar
     story.append(Paragraph("📊 Profil Kompetensi Perilaku (SJT)", h2_style))
     
     sjt_table_data = [
-        [Paragraph("Dimensi Kompetensi", bold_label_style), Paragraph("Skor Capaian", bold_label_style)],
+        [Paragraph("Dimensi Kompetensi", bold_label_style), Paragraph("Skor", bold_label_style)],
         [Paragraph("Leadership & Team Management", body_style), Paragraph(str(cand_data.get('Leadership', 0)), body_style)],
         [Paragraph("Stress Tolerance & Agility", body_style), Paragraph(str(cand_data.get('Stress_Tolerance', 0)), body_style)],
         [Paragraph("Execution & Drive for Results", body_style), Paragraph(str(cand_data.get('Execution', 0)), body_style)],
         [Paragraph("Integrity & Ethics", body_style), Paragraph(str(cand_data.get('Integrity', 0)), body_style)],
         [Paragraph("Strategic Thinking", body_style), Paragraph(str(cand_data.get('Strategic_Thinking', 0)), body_style)],
     ]
-
-    t_sjt = Table(sjt_table_data, colWidths=[360, 160])
+    t_sjt = Table(sjt_table_data, colWidths=[200, 60])
     t_sjt.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F1F5F9')),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 6),
-        ('TOPPADDING', (0,0), (-1,-1), 6),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+        ('RIGHTPADDING', (0,0), (-1,-1), 6),
         ('BOX', (0,0), (-1,-1), 0.5, colors.HexColor('#CBD5E1')),
         ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
     ]))
-    story.append(t_sjt)
-    story.append(Spacer(1, 15))
 
-    # Kesimpulan & Rekomendasi
+    side_by_side_table = Table([[t_sjt, radar_img]], colWidths=[270, 250])
+    side_by_side_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('ALIGN', (1,0), (1,0), 'CENTER'),
+        ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ('RIGHTPADDING', (0,0), (-1,-1), 0),
+    ]))
+    story.append(side_by_side_table)
+    story.append(Spacer(1, 10))
+
+    # 6. Kesimpulan & Rekomendasi HR
     story.append(Paragraph("📋 Kesimpulan & Rekomendasi HR", h2_style))
-    
     if theta_val > 0.8:
-        recom_text = "<b>HIGH RECOMMENDED (Sangat Direkomendasikan):</b> Kandidat memiliki kapasitas penalaran kognitif tingkat tinggi serta pemikiran strategis yang sangat adaptif terhadap peran kepemimpinan."
+        recom_text = "<b>HIGH RECOMMENDED (Sangat Direkomendasikan):</b> Memiliki kapasitas kognitif tingkat tinggi serta pemikiran strategis yang sangat adaptif."
     elif theta_val >= -0.2:
-        recom_text = "<b>RECOMMENDED WITH CONSIDERATION (Direkomendasikan dengan Pertimbangan):</b> Memiliki kapabilitas analisis yang memadai untuk lingkup kerja operasional standar dengan potensi pengembangan lebih lanjut."
+        recom_text = "<b>RECOMMENDED WITH CONSIDERATION (Direkomendasikan dengan Pertimbangan):</b> Memiliki kapabilitas analisis yang memadai untuk lingkup kerja operasional standar."
     else:
-        recom_text = "<b>NOT RECOMMENDED (Kurang Direkomendasikan):</b> Kapasitas penalaran kognitif berada di bawah kualifikasi minimum yang dipersyaratkan."
+        recom_text = "<b>NOT RECOMMENDED (Kurang Direkomendasikan):</b> Kapasitas penalaran kognitif berada di bawah kualifikasi minimum."
 
     story.append(Paragraph(recom_text, body_style))
     story.append(Spacer(1, 10))
-    story.append(Paragraph("<font size=8 color='#666666'>* Catatan Kerahasiaan: Laporan ini dihasilkan secara otomatis menggunakan sistem pemodelan psikometri Item Response Theory (IRT) 3PL dan bersifat rahasia untuk penggunaan internal HR/Management.</font>", body_style))
+    story.append(Paragraph("<font size=7 color='#666666'>* Catatan Kerahasiaan: Laporan ini dihasilkan secara otomatis menggunakan sistem pemodelan psikometri Item Response Theory (IRT) 3PL dan bersifat rahasia.</font>", body_style))
 
     doc.build(story)
     buffer.seek(0)
