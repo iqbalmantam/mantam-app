@@ -17,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-ADMIN_PIN = "2273"  # Ganti PIN rahasia kamu di sini
+ADMIN_PIN = "2273"  # PIN Rahasia Admin / HR
 
 # Custom CSS: Sembunyikan Header & Anti Copy-Paste
 st.markdown(
@@ -479,8 +479,25 @@ if st.session_state.test_started and not st.session_state.test_finished:
 st.title("🛡️ System Asesmen General Kandidat")
 st.caption("Standardized Adaptive Testing & Behavioral Competency Evaluation System")
 
-# --- PHASE 1: REGISTRASI ---
+# --- PHASE 1: REGISTRASI & AKSES ADMIN DI HALAMAN AWAL ---
 if not st.session_state.test_started and not st.session_state.test_finished:
+    
+    # 🔐 AKSES KONTROL REKAP LAPORAN (UNTUK ADMIN/HR DI HALAMAN AWAL)
+    with st.expander("🔐 Akses Laporan Hasil (Khusus Admin / HR)", expanded=False):
+        admin_input = st.text_input("Masukkan PIN Admin/HR:", type="password", key="admin_pin_main")
+        if admin_input == ADMIN_PIN:
+            st.success("🔓 Akses Diberikan! Berikut Rekap Database Hasil Asesmen Kandidat:")
+            try:
+                conn = st.connection("gsheets", type=GSheetsConnection)
+                df_results = conn.read(ttl=0)
+                st.dataframe(df_results, use_container_width=True)
+            except Exception as e:
+                st.error(f"Gagal mengambil data dari Google Sheets: {e}")
+        elif admin_input != "":
+            st.error("❌ PIN Salah. Akses Ditolak.")
+
+    st.markdown("---")
+
     st.subheader("Formulir Data Diri Kandidat")
     with st.form("reg_form"):
         col1, col2 = st.columns(2)
@@ -607,7 +624,7 @@ elif st.session_state.test_started and not st.session_state.test_finished:
                 st.session_state.test_finished = True
                 st.rerun()
 
-# --- PHASE 3: TERIMA KASIH & DOKUMEN KHUSUS ADMIN ---
+# --- PHASE 3: TERIMA KASIH & SELESAI ---
 elif st.session_state.test_finished:
     cand = st.session_state.candidate_info
 
@@ -644,77 +661,6 @@ elif st.session_state.test_finished:
         f"Terima kasih **{cand.get('name', 'Kandidat')}**, jawaban Anda telah berhasil direkam dan dikirim ke tim HR. "
         "Hasil tes bersifat rahasia dan akan dievaluasi secara internal. Anda dipersilakan untuk menutup halaman ini."
     )
-
-    st.markdown("---")
-    
-    # AREA TERKUNCI (KHUSUS ADMIN / HR)
-    with st.expander("🔐 Akses Laporan Hasil (Khusus Admin / HR)", expanded=False):
-        admin_input = st.text_input("Masukkan PIN Admin/HR:", type="password", key="admin_pin_input")
-        
-        if admin_input == ADMIN_PIN:
-            st.subheader(f"Laporan Asesmen Psikologi: {cand.get('name', 'Kandidat')}")
-            st.caption(
-                f"Posisi: {cand.get('position', '-')} | Pengalaman: {cand.get('exp', 0)} Tahun | Email: {cand.get('email', '-')}"
-            )
-
-            st.markdown("---")
-
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric(
-                    "Skor Kognitif Laten (Theta Z-Score)",
-                    f"{st.session_state.theta:+.2f}",
-                )
-            with col2:
-                st.metric("Estimasi Kapasitas Intelektual", f"IQ ~{iq_equivalent}")
-            with col3:
-                st.metric("Kesesuaian Kualifikasi", fit_status)
-
-            st.markdown("---")
-
-            st.subheader("📊 Profil Kompetensi Perilaku (SJT Assessment)")
-
-            categories = list(comp_scores.keys())
-            values = list(comp_scores.values())
-
-            categories.append(categories[0])
-            values.append(values[0])
-
-            max_val = max(max(values), 10)
-
-            fig = go.Figure(
-                data=go.Scatterpolar(r=values, theta=categories, fill="toself")
-            )
-            fig.update_layout(
-                polar=dict(radialaxis=dict(visible=True, range=[0, max_val])),
-                showlegend=False,
-            )
-
-            r_col1, r_col2 = st.columns([1, 1])
-            with r_col1:
-                st.plotly_chart(fig, use_container_width=True)
-
-            with r_col2:
-                st.markdown("### Kesimpulan & Rekomendasi HR")
-                if st.session_state.theta > 0.8:
-                    st.write(
-                        "🟢 **Kandidat Sangat Direkomendasikan (High Potential).** Memiliki kemampuan penalaran kognitif tingkat tinggi dan adaptif terhadap tantangan strategis."
-                    )
-                elif st.session_state.theta >= -0.2:
-                    st.write(
-                        "🟡 **Kandidat Direkomendasikan dengan Pertimbangan.** Memiliki kapabilitas analisis yang memadai untuk lingkup kerja operasional standar."
-                    )
-                else:
-                    st.write(
-                        "🔴 **Kurang Direkomendasikan.** Kapasitas penalaran kognitif berada di bawah standar kualifikasi minimum."
-                    )
-
-                st.markdown("**Catatan Kerahasiaan:**")
-                st.caption(
-                    "Hasil tes ini bersifat rahasia dan dikalkulasi secara otomatis menggunakan pemodelan Item Response Theory (IRT)."
-                )
-        elif admin_input != "":
-            st.error("❌ PIN Salah. Akses Ditolak.")
 
 # --- FOOTER ---
 st.markdown("---")
