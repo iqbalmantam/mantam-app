@@ -20,7 +20,7 @@ st.set_page_config(
 
 ADMIN_PIN = "2273"  # PIN Rahasia Admin / HR
 
-# Custom CSS & Styling Khusus Mode Cetak PDF
+# Custom CSS & Styling Khusus Mode Cetak PDF (Disesuaikan)
 st.markdown(
     """
     <style>
@@ -44,13 +44,18 @@ st.markdown(
     
     /* ATURAN KHUSUS CETAK PDF / PRINT */
     @media print {
-        /* Sembunyikan elemen navigasi & input saja */
-        header, footer, .stButton, .stSelectbox, .stTextInput, iframe {
+        /* Sembunyikan elemen navigasi, tombol, input, tabel database, & form registrasi */
+        header, footer, .stButton, .stSelectbox, .stTextInput, iframe, 
+        div[data-testid="stDataFrame"], 
+        div[data-testid="stForm"],
+        .stAlert {
             display: none !important;
         }
+        
         /* Pastikan isi Expander tetap terbuka & terlihat jelas saat diprint */
         div[data-testid="stExpander"] {
             border: none !important;
+            box-shadow: none !important;
         }
         div[data-testid="stExpanderDetails"] {
             display: block !important;
@@ -586,7 +591,6 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 
                     st.markdown("### 📄 Executive Summary Laporan Kandidat")
 
-                    # Perbaikan Panggilan Print: window.parent.print() agar mencetak seluruh dokumen utama
                     components.html(
                         """
                         <button onclick="window.parent.print()" style="
