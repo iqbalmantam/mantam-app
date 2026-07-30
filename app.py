@@ -20,7 +20,7 @@ st.set_page_config(
 
 ADMIN_PIN = "2273"  # PIN Rahasia Admin / HR
 
-# Custom CSS & Styling Khusus Mode Cetak PDF (Perbaikan Tuntas Dark Mode & Page Leak)
+# Custom CSS & Styling Khusus Mode Cetak PDF (Isolasi Element-Container)
 st.markdown(
     """
     <style>
@@ -43,26 +43,30 @@ st.markdown(
     }
     
     /* ==========================================
-       FIX PRINT PDF (CLEAN WHITE PAGE ENGINE)
+       ENGINE PRINT PDF TUNTAS (STREAMLIT FILTER)
        ========================================== */
     @media print {
-        /* 1. Paksa seluruh container Streamlit berlatar putih bersih & teks hitam */
-        html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], .main, section {
+        /* 1. Paksa Latar Belakang Putih & Teks Hitam */
+        html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], .main {
             background-color: #ffffff !important;
             background: #ffffff !important;
             color: #000000 !important;
         }
 
-        /* 2. Sembunyikan elemen UI luar (Header, Form Registrasi, Title, Button, dsb) */
-        header, footer, [data-testid="stHeader"], [data-testid="stSidebar"], 
-        .stButton, .stSelectbox, .stTextInput, iframe, 
-        div[data-testid="stDataFrame"], div[data-testid="stForm"],
-        div[data-testid="stExpanderSummary"], .stAlert, summary, h1, hr,
-        .report-hide-on-print {
+        /* 2. SEMBUNYIKAN SEMUA WIDGET / ELEMENT-CONTAINER DI HALAMAN */
+        div[data-testid="element-container"],
+        [data-testid="stHeader"],
+        footer {
             display: none !important;
         }
 
-        /* 3. Tampilkan isi Expander Admin tanpa border/kotak */
+        /* 3. TAMPILKAN HANYA WIDGET YANG ADA DI DALAM EXPANDER LAPORAN HR */
+        div[data-testid="stExpanderDetails"] div[data-testid="element-container"],
+        div[data-testid="stExpanderDetails"] div[data-testid="stBlock"] {
+            display: block !important;
+        }
+
+        /* 4. Hilangkan Bingkai Expander & Paksa Teks Hitam */
         div[data-testid="stExpander"] {
             border: none !important;
             box-shadow: none !important;
@@ -75,11 +79,17 @@ st.markdown(
             display: block !important;
             padding: 0 !important;
             background-color: #ffffff !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
         }
 
-        /* 4. Pastikan teks di dalam laporan berwarna hitam tajam */
         div[data-testid="stExpanderDetails"] * {
             color: #000000 !important;
+        }
+
+        /* 5. Sembunyikan Iframe Tombol Print saat proses cetak berjalan */
+        iframe {
+            display: none !important;
         }
     }
     </style>
@@ -694,7 +704,8 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                             angularaxis=dict(color="#333333")
                         ),
                         showlegend=False,
-                        margin=dict(l=40, r=40, t=20, b=20)
+                        margin=dict(l=30, r=30, t=20, b=20),
+                        height=350
                     )
 
                     rc1, rc2 = st.columns([1, 1])
@@ -729,8 +740,7 @@ if not st.session_state.test_started and not st.session_state.test_finished:
         elif admin_input != "":
             st.error("❌ PIN Salah. Akses Ditolak.")
 
-    # Container Form Registrasi diberi class "report-hide-on-print" agar tidak ikut tercetak
-    st.markdown('<div class="report-hide-on-print"><hr>', unsafe_allow_html=True)
+    st.markdown("---")
 
     st.subheader("Formulir Data Diri Kandidat")
     with st.form("reg_form"):
@@ -783,7 +793,6 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                 st.rerun()
             else:
                 st.error("Mohon lengkapi semua kolom wajib.")
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- PHASE 2: PENGERJAAN TES ---
 elif st.session_state.test_started and not st.session_state.test_finished:
@@ -909,7 +918,6 @@ elif st.session_state.test_finished:
     )
 
 # --- FOOTER ---
-st.markdown('<div class="report-hide-on-print">', unsafe_allow_html=True)
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #888888; font-size: 13px; font-weight: 500;'>"
@@ -917,4 +925,3 @@ st.markdown(
     "</div>",
     unsafe_allow_html=True,
 )
-st.markdown('</div>', unsafe_allow_html=True)
