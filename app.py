@@ -20,7 +20,7 @@ st.set_page_config(
 
 ADMIN_PIN = "2273"  # PIN Rahasia Admin / HR
 
-# Custom CSS & Styling Khusus Mode Cetak PDF (Isolasi Total DOM)
+# Custom CSS & Styling Khusus Mode Cetak PDF (Perbaikan Tuntas Dark Mode & Page Leak)
 st.markdown(
     """
     <style>
@@ -43,36 +43,42 @@ st.markdown(
     }
     
     /* ==========================================
-       ISOLASI TOTAL UNTUK METODE CETAK PRINT/PDF
+       FIX PRINT PDF (CLEAN WHITE PAGE ENGINE)
        ========================================== */
     @media print {
-        /* Sembunyikan seluruh elemen di body */
-        body * {
-            visibility: hidden !important;
-        }
-
-        /* Tampilkan HANYA area laporan kandidat & anak-anak elemennya */
-        #report-printable-area, #report-printable-area * {
-            visibility: visible !important;
-        }
-
-        /* Posisikan laporan di paling atas kertas cetak */
-        #report-printable-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
+        /* 1. Paksa seluruh container Streamlit berlatar putih bersih & teks hitam */
+        html, body, .stApp, [data-testid="stAppViewContainer"], [data-testid="stMain"], .main, section {
             background-color: #ffffff !important;
+            background: #ffffff !important;
             color: #000000 !important;
         }
 
-        /* Sembunyikan tombol print iframe saat diprint */
-        iframe {
+        /* 2. Sembunyikan elemen UI luar (Header, Form Registrasi, Title, Button, dsb) */
+        header, footer, [data-testid="stHeader"], [data-testid="stSidebar"], 
+        .stButton, .stSelectbox, .stTextInput, iframe, 
+        div[data-testid="stDataFrame"], div[data-testid="stForm"],
+        div[data-testid="stExpanderSummary"], .stAlert, summary, h1, hr,
+        .report-hide-on-print {
             display: none !important;
         }
 
-        /* Paksa teks di dalam laporan berwarna hitam */
-        #report-printable-area * {
+        /* 3. Tampilkan isi Expander Admin tanpa border/kotak */
+        div[data-testid="stExpander"] {
+            border: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        div[data-testid="stExpanderDetails"] {
+            display: block !important;
+            padding: 0 !important;
+            background-color: #ffffff !important;
+        }
+
+        /* 4. Pastikan teks di dalam laporan berwarna hitam tajam */
+        div[data-testid="stExpanderDetails"] * {
             color: #000000 !important;
         }
     }
@@ -604,11 +610,6 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                         df_results["Select_Label"] == selected_candidate_label
                     ].iloc[0]
 
-                    # -----------------------------------------------------------------
-                    # ISOLASI WRAPPER DENGAN ID #report-printable-area UNTUK PRINT PDF
-                    # -----------------------------------------------------------------
-                    st.markdown('<div id="report-printable-area">', unsafe_allow_html=True)
-
                     st.markdown("### 📄 Executive Summary Laporan Kandidat")
 
                     components.html(
@@ -720,8 +721,6 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                         st.caption(
                             "Hasil tes ini bersifat rahasia dan dikalkulasi secara otomatis menggunakan pemodelan Item Response Theory (IRT)."
                         )
-
-                    st.markdown('</div>', unsafe_allow_html=True)
                 else:
                     st.info("Belum ada data kandidat yang tersimpan.")
 
@@ -730,7 +729,8 @@ if not st.session_state.test_started and not st.session_state.test_finished:
         elif admin_input != "":
             st.error("❌ PIN Salah. Akses Ditolak.")
 
-    st.markdown("---")
+    # Container Form Registrasi diberi class "report-hide-on-print" agar tidak ikut tercetak
+    st.markdown('<div class="report-hide-on-print"><hr>', unsafe_allow_html=True)
 
     st.subheader("Formulir Data Diri Kandidat")
     with st.form("reg_form"):
@@ -783,6 +783,7 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                 st.rerun()
             else:
                 st.error("Mohon lengkapi semua kolom wajib.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- PHASE 2: PENGERJAAN TES ---
 elif st.session_state.test_started and not st.session_state.test_finished:
@@ -908,6 +909,7 @@ elif st.session_state.test_finished:
     )
 
 # --- FOOTER ---
+st.markdown('<div class="report-hide-on-print">', unsafe_allow_html=True)
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #888888; font-size: 13px; font-weight: 500;'>"
@@ -915,3 +917,4 @@ st.markdown(
     "</div>",
     unsafe_allow_html=True,
 )
+st.markdown('</div>', unsafe_allow_html=True)
