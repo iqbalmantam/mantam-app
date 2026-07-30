@@ -685,7 +685,7 @@ def generate_candidate_pdf(cand_data):
     story.append(Spacer(1, 8))
 
     # 4. Generate Radar Chart Vektor (Native ReportLab Engine)
-    labels = ["Leadership", "Stress Tol.", "Execution", "Integrity", "Strategic"]
+    labels = ["Leadership", "Stress Tol.", "Execution", "Integrity", "Strategic Think."]
     raw_vals = [
         float(cand_data.get('Leadership', 0)),
         float(cand_data.get('Stress_Tolerance', 0)),
