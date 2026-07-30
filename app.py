@@ -20,7 +20,7 @@ st.set_page_config(
 
 ADMIN_PIN = "2273"  # PIN Rahasia Admin / HR
 
-# Custom CSS & Styling Khusus Mode Cetak PDF (Fix Dark Mode & Layout PDF)
+# Custom CSS & Styling Khusus Mode Cetak PDF
 st.markdown(
     """
     <style>
@@ -43,41 +43,45 @@ st.markdown(
     }
     
     /* ==========================================
-       FIX PRINT PDF (LATAR PUTIH & TANPA ELEMEN LUAR)
+       ATURAN KHUSUS CETAK PDF / PRINT
        ========================================== */
     @media print {
-        /* Paksa seluruh halaman print berlatar putih & teks hitam */
-        html, body, [data-testid="stAppViewContainer"], .main {
-            background-color: white !important;
-            color: black !important;
+        /* 1. Latar belakang putih bersih */
+        html, body, [data-testid="stAppViewContainer"], .main, .stApp {
+            background-color: #ffffff !important;
+            color: #000000 !important;
         }
 
-        /* Sembunyikan elemen yang tidak perlu dalam laporan */
+        /* 2. Sembunyikan elemen luar: Header, Title, Form Registrasi, Footer, Tombol, dsb */
         header, footer, .stButton, .stSelectbox, .stTextInput, iframe, 
         div[data-testid="stDataFrame"], 
         div[data-testid="stForm"],
-        .stAlert,
-        summary,
         div[data-testid="stExpanderSummary"],
-        h1, hr, .stMarkdown > div > h3,
-        div[data-testid="stHeader"] {
+        .stAlert, summary, h1, hr {
             display: none !important;
         }
 
-        /* Hilangkan bingkai/border expander */
+        /* Sembunyikan khusus elemen setelah expander admin (Formulir Kandidat) */
+        .report-hide-on-print {
+            display: none !important;
+        }
+
+        /* 3. Hilangkan bingkai/border expander */
         div[data-testid="stExpander"] {
             border: none !important;
             box-shadow: none !important;
             background: transparent !important;
+            margin: 0 !important;
+            padding: 0 !important;
         }
 
-        /* Pastikan isi laporan terlihat jelas */
+        /* 4. Tampilkan isi laporan secara utuh */
         div[data-testid="stExpanderDetails"] {
             display: block !important;
             padding: 0 !important;
         }
 
-        /* Pastikan teks di dalam laporan berwarna gelap/hitam saat diprint */
+        /* 5. Paksa teks di dalam laporan berwarna hitam */
         div[data-testid="stExpanderDetails"] * {
             color: #000000 !important;
         }
@@ -675,16 +679,26 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 
                     max_radar_val = max(max(comp_values), 10)
 
+                    # PERBAIKAN GRAFIK PLOTLY: Background dibuat transparan & garis dibuat kontras
                     fig_cand = go.Figure(
                         data=go.Scatterpolar(
-                            r=comp_values, theta=comp_dimensions, fill="toself"
+                            r=comp_values, 
+                            theta=comp_dimensions, 
+                            fill="toself",
+                            line=dict(color="#0F52BA"),
+                            fillcolor="rgba(15, 82, 186, 0.2)"
                         )
                     )
                     fig_cand.update_layout(
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(0,0,0,0)",
                         polar=dict(
-                            radialaxis=dict(visible=True, range=[0, max_radar_val])
+                            bgcolor="rgba(0,0,0,0)",
+                            radialaxis=dict(visible=True, range=[0, max_radar_val], color="#333333"),
+                            angularaxis=dict(color="#333333")
                         ),
                         showlegend=False,
+                        margin=dict(l=40, r=40, t=20, b=20)
                     )
 
                     rc1, rc2 = st.columns([1, 1])
@@ -719,8 +733,9 @@ if not st.session_state.test_started and not st.session_state.test_finished:
         elif admin_input != "":
             st.error("❌ PIN Salah. Akses Ditolak.")
 
+    # PEMBUNGKUS KHUSUS UNTUK MEMASTIKAN FORM KANDIDAT SEMBUNYI SAAT PRINT
+    st.markdown('<div class="report-hide-on-print">', unsafe_allow_html=True)
     st.markdown("---")
-
     st.subheader("Formulir Data Diri Kandidat")
     with st.form("reg_form"):
         col1, col2 = st.columns(2)
@@ -772,6 +787,7 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                 st.rerun()
             else:
                 st.error("Mohon lengkapi semua kolom wajib.")
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- PHASE 2: PENGERJAAN TES ---
 elif st.session_state.test_started and not st.session_state.test_finished:
@@ -897,6 +913,7 @@ elif st.session_state.test_finished:
     )
 
 # --- FOOTER ---
+st.markdown('<div class="report-hide-on-print">', unsafe_allow_html=True)
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #888888; font-size: 13px; font-weight: 500;'>"
@@ -904,3 +921,4 @@ st.markdown(
     "</div>",
     unsafe_allow_html=True,
 )
+st.markdown('</div>', unsafe_allow_html=True)
