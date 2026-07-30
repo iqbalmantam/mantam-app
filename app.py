@@ -20,7 +20,7 @@ st.set_page_config(
 
 ADMIN_PIN = "2273"  # PIN Rahasia Admin / HR
 
-# Custom CSS & Styling Khusus Mode Cetak PDF (Bersih Tanpa Header Expander)
+# Custom CSS & Styling Khusus Mode Cetak PDF (Sangat Bersih)
 st.markdown(
     """
     <style>
@@ -44,25 +44,32 @@ st.markdown(
     
     /* ATURAN KHUSUS CETAK PDF / PRINT */
     @media print {
-        /* 1. Sembunyikan Navigasi, Form, Judul Utama, & Header Expander Admin */
+        /* 1. Sembunyikan Navigasi, Form Registrasi, Tombol, Garis Pemisah (hr), & Header Luar */
         header, footer, .stButton, .stSelectbox, .stTextInput, iframe, 
         div[data-testid="stDataFrame"], 
         div[data-testid="stForm"],
         .stAlert,
         summary,
         div[data-testid="stExpanderSummary"],
-        h1 {
+        h1, hr, .stMarkdown > div > h3 {
             display: none !important;
         }
         
-        /* 2. Hilangkan Kotak/Bingkai Expander agar Hasil Cetak Murni Hanya Dokumen */
+        /* 2. Khusus Judul/Header di DALAM Expander Tetap Ditampilkan */
+        div[data-testid="stExpanderDetails"] h3,
+        div[data-testid="stExpanderDetails"] h2,
+        div[data-testid="stExpanderDetails"] hr {
+            display: block !important;
+        }
+        
+        /* 3. Hilangkan Kotak/Bingkai Expander agar Hasil Cetak Murni Hanya Laporan */
         div[data-testid="stExpander"] {
             border: none !important;
             box-shadow: none !important;
             background: transparent !important;
         }
         
-        /* 3. Tampilkan Hanya Isi Laporan */
+        /* 4. Tampilkan Hanya Isi Laporan */
         div[data-testid="stExpanderDetails"] {
             display: block !important;
             padding: 0 !important;
