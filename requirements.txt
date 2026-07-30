@@ -4,4 +4,3 @@ numpy
 plotly
 st-gsheets-connection
 reportlab
-kaleido
