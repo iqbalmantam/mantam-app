@@ -20,7 +20,7 @@ st.set_page_config(
 
 ADMIN_PIN = "2273"  # PIN Rahasia Admin / HR
 
-# Custom CSS & Styling Khusus Mode Cetak PDF (Metode Isolasi Area Laporan)
+# Custom CSS & Styling Khusus Mode Cetak PDF (Fix Dark Mode & Layout PDF)
 st.markdown(
     """
     <style>
@@ -43,30 +43,43 @@ st.markdown(
     }
     
     /* ==========================================
-       ISOLASI PRINT ENGINE (HANYA AREA LAPORAN)
+       FIX PRINT PDF (LATAR PUTIH & TANPA ELEMEN LUAR)
        ========================================== */
     @media print {
-        /* 1. Sembunyikan seluruh elemen halaman bawaan Streamlit */
-        body * {
-            visibility: hidden !important;
+        /* Paksa seluruh halaman print berlatar putih & teks hitam */
+        html, body, [data-testid="stAppViewContainer"], .main {
+            background-color: white !important;
+            color: black !important;
         }
-        
-        /* 2. Tampilkan HANYA kontainer laporan kandidat dan anak-anaknya */
-        #print-report-area, #print-report-area * {
-            visibility: visible !important;
-        }
-        
-        /* 3. Posisikan kontainer laporan tepat di paling atas halaman cetak */
-        #print-report-area {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 100% !important;
-        }
-        
-        /* 4. Sembunyikan tombol print itu sendiri saat proses cetak */
-        iframe {
+
+        /* Sembunyikan elemen yang tidak perlu dalam laporan */
+        header, footer, .stButton, .stSelectbox, .stTextInput, iframe, 
+        div[data-testid="stDataFrame"], 
+        div[data-testid="stForm"],
+        .stAlert,
+        summary,
+        div[data-testid="stExpanderSummary"],
+        h1, hr, .stMarkdown > div > h3,
+        div[data-testid="stHeader"] {
             display: none !important;
+        }
+
+        /* Hilangkan bingkai/border expander */
+        div[data-testid="stExpander"] {
+            border: none !important;
+            box-shadow: none !important;
+            background: transparent !important;
+        }
+
+        /* Pastikan isi laporan terlihat jelas */
+        div[data-testid="stExpanderDetails"] {
+            display: block !important;
+            padding: 0 !important;
+        }
+
+        /* Pastikan teks di dalam laporan berwarna gelap/hitam saat diprint */
+        div[data-testid="stExpanderDetails"] * {
+            color: #000000 !important;
         }
     }
     </style>
@@ -597,115 +610,107 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                         df_results["Select_Label"] == selected_candidate_label
                     ].iloc[0]
 
-                    # -------------------------------------------------------------
-                    # CONTAINER TERISOLASI UNTUK CETAK LAPORAN (ID: print-report-area)
-                    # -------------------------------------------------------------
-                    with st.container():
-                        st.markdown('<div id="print-report-area">', unsafe_allow_html=True)
-                        
-                        st.markdown("### 📄 Executive Summary Laporan Kandidat")
+                    st.markdown("### 📄 Executive Summary Laporan Kandidat")
 
-                        components.html(
-                            """
-                            <button onclick="window.parent.print()" style="
-                                background-color: #0F52BA;
-                                color: white;
-                                border: none;
-                                padding: 10px 18px;
-                                border-radius: 8px;
-                                font-weight: bold;
-                                cursor: pointer;
-                                font-size: 14px;
-                                margin-bottom: 10px;
-                            ">
-                                🖨️ Cetak / Save to PDF
-                            </button>
-                            """,
-                            height=55,
+                    components.html(
+                        """
+                        <button onclick="window.parent.print()" style="
+                            background-color: #0F52BA;
+                            color: white;
+                            border: none;
+                            padding: 10px 18px;
+                            border-radius: 8px;
+                            font-weight: bold;
+                            cursor: pointer;
+                            font-size: 14px;
+                            margin-bottom: 10px;
+                        ">
+                            🖨️ Cetak / Save to PDF
+                        </button>
+                        """,
+                        height=55,
+                    )
+
+                    st.write(f"**Nama Lengkap:** {cand_data.get('Nama', '-')}")
+                    st.write(f"**Email:** {cand_data.get('Email', '-')}")
+                    st.write(f"**Level Jabatan:** {cand_data.get('Level_Jabatan', '-')}")
+                    st.write(f"**Posisi/Divisi:** {cand_data.get('Posisi', '-')}")
+                    st.write(f"**Pengalaman:** {cand_data.get('Pengalaman', 0)} Tahun")
+                    st.write(f"**Waktu Ujian:** {cand_data.get('Timestamp', '-')}")
+
+                    st.markdown("---")
+
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        st.metric(
+                            "Skor Kognitif Laten (Theta)",
+                            f"{float(cand_data.get('Skor_Theta', 0)):+.2f}",
+                        )
+                    with c2:
+                        st.metric(
+                            "Estimasi IQ", f"IQ ~{cand_data.get('Estimasi_IQ', '-')}"
+                        )
+                    with c3:
+                        st.metric(
+                            "Status Kesesuaian",
+                            f"{cand_data.get('Status_Kesesuaian', '-')}",
                         )
 
-                        st.write(f"**Nama Lengkap:** {cand_data.get('Nama', '-')}")
-                        st.write(f"**Email:** {cand_data.get('Email', '-')}")
-                        st.write(f"**Level Jabatan:** {cand_data.get('Level_Jabatan', '-')}")
-                        st.write(f"**Posisi/Divisi:** {cand_data.get('Posisi', '-')}")
-                        st.write(f"**Pengalaman:** {cand_data.get('Pengalaman', 0)} Tahun")
-                        st.write(f"**Waktu Ujian:** {cand_data.get('Timestamp', '-')}")
+                    st.markdown("---")
+                    st.subheader("📊 Profil Radar Kompetensi Perilaku (SJT)")
 
-                        st.markdown("---")
+                    comp_dimensions = [
+                        "Leadership",
+                        "Stress_Tolerance",
+                        "Execution",
+                        "Integrity",
+                        "Strategic_Thinking",
+                    ]
+                    comp_values = [
+                        float(cand_data.get(dim, 0)) for dim in comp_dimensions
+                    ]
 
-                        c1, c2, c3 = st.columns(3)
-                        with c1:
-                            st.metric(
-                                "Skor Kognitif Laten (Theta)",
-                                f"{float(cand_data.get('Skor_Theta', 0)):+.2f}",
-                            )
-                        with c2:
-                            st.metric(
-                                "Estimasi IQ", f"IQ ~{cand_data.get('Estimasi_IQ', '-')}"
-                            )
-                        with c3:
-                            st.metric(
-                                "Status Kesesuaian",
-                                f"{cand_data.get('Status_Kesesuaian', '-')}",
-                            )
+                    comp_dimensions.append(comp_dimensions[0])
+                    comp_values.append(comp_values[0])
 
-                        st.markdown("---")
-                        st.subheader("📊 Profil Radar Kompetensi Perilaku (SJT)")
+                    max_radar_val = max(max(comp_values), 10)
 
-                        comp_dimensions = [
-                            "Leadership",
-                            "Stress_Tolerance",
-                            "Execution",
-                            "Integrity",
-                            "Strategic_Thinking",
-                        ]
-                        comp_values = [
-                            float(cand_data.get(dim, 0)) for dim in comp_dimensions
-                        ]
-
-                        comp_dimensions.append(comp_dimensions[0])
-                        comp_values.append(comp_values[0])
-
-                        max_radar_val = max(max(comp_values), 10)
-
-                        fig_cand = go.Figure(
-                            data=go.Scatterpolar(
-                                r=comp_values, theta=comp_dimensions, fill="toself"
-                            )
+                    fig_cand = go.Figure(
+                        data=go.Scatterpolar(
+                            r=comp_values, theta=comp_dimensions, fill="toself"
                         )
-                        fig_cand.update_layout(
-                            polar=dict(
-                                radialaxis=dict(visible=True, range=[0, max_radar_val])
-                            ),
-                            showlegend=False,
-                        )
+                    )
+                    fig_cand.update_layout(
+                        polar=dict(
+                            radialaxis=dict(visible=True, range=[0, max_radar_val])
+                        ),
+                        showlegend=False,
+                    )
 
-                        rc1, rc2 = st.columns([1, 1])
-                        with rc1:
-                            st.plotly_chart(fig_cand, use_container_width=True)
+                    rc1, rc2 = st.columns([1, 1])
+                    with rc1:
+                        st.plotly_chart(fig_cand, use_container_width=True)
 
-                        with rc2:
-                            st.markdown("### Kesimpulan & Rekomendasi HR")
-                            theta_val = float(cand_data.get("Skor_Theta", 0))
-                            if theta_val > 0.8:
-                                st.write(
-                                    "🟢 **Kandidat Sangat Direkomendasikan (High Potential).** Memiliki kemampuan penalaran kognitif tingkat tinggi dan adaptif terhadap tantangan strategis."
-                                )
-                            elif theta_val >= -0.2:
-                                st.write(
-                                    "🟡 **Kandidat Direkomendasikan dengan Pertimbangan.** Memiliki kapabilitas analisis yang memadai untuk lingkup kerja operasional standar."
-                                )
-                            else:
-                                st.write(
-                                    "🔴 **Kurang Direkomendasikan.** Kapasitas penalaran kognitif berada di bawah standar kualifikasi minimum."
-                                )
-
-                            st.markdown("**Catatan Kerahasiaan:**")
-                            st.caption(
-                                "Hasil tes ini bersifat rahasia dan dikalkulasi secara otomatis menggunakan pemodelan Item Response Theory (IRT)."
+                    with rc2:
+                        st.markdown("### Kesimpulan & Rekomendasi HR")
+                        theta_val = float(cand_data.get("Skor_Theta", 0))
+                        if theta_val > 0.8:
+                            st.write(
+                                "🟢 **Kandidat Sangat Direkomendasikan (High Potential).** Memiliki kemampuan penalaran kognitif tingkat tinggi dan adaptif terhadap tantangan strategis."
                             )
-                        
-                        st.markdown('</div>', unsafe_allow_html=True)
+                        elif theta_val >= -0.2:
+                            st.write(
+                                "🟡 **Kandidat Direkomendasikan dengan Pertimbangan.** Memiliki kapabilitas analisis yang memadai untuk lingkup kerja operasional standar."
+                            )
+                        else:
+                            st.write(
+                                "🔴 **Kurang Direkomendasikan.** Kapasitas penalaran kognitif berada di bawah standar kualifikasi minimum."
+                            )
+
+                        st.markdown("**Catatan Kerahasiaan:**")
+                        st.caption(
+                            "Hasil tes ini bersifat rahasia dan dikalkulasi secara otomatis menggunakan pemodelan Item Response Theory (IRT)."
+                        )
                 else:
                     st.info("Belum ada data kandidat yang tersimpan.")
 
