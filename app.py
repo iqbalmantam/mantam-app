@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 from streamlit_gsheets import GSheetsConnection
 
 # ==========================================
@@ -37,6 +38,11 @@ st.markdown(
         -moz-user-select: text !important;
         -ms-user-select: text !important;
         user-select: text !important;
+    }
+    @media print {
+        header, footer, .stButton, .stSelectbox, .stTextInput, .stExpander {
+            display: none !important;
+        }
     }
     </style>
     """,
@@ -491,6 +497,138 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                 conn = st.connection("gsheets", type=GSheetsConnection)
                 df_results = conn.read(ttl=0)
                 st.dataframe(df_results, use_container_width=True)
+
+                st.markdown("---")
+                st.subheader("🔍 Detail & Summary Penilaian Kandidat")
+
+                if not df_results.empty:
+                    # Membuat daftar pilihan kandidat (Nama + Email + Timestamp)
+                    df_results["Select_Label"] = (
+                        df_results["Nama"].astype(str)
+                        + " | "
+                        + df_results["Email"].astype(str)
+                        + " ("
+                        + df_results["Timestamp"].astype(str)
+                        + ")"
+                    )
+
+                    selected_candidate_label = st.selectbox(
+                        "Pilih Kandidat untuk Melihat Summary Penilaian:",
+                        options=df_results["Select_Label"].tolist(),
+                        index=len(df_results) - 1,  # Default pilih yang paling baru
+                    )
+
+                    # Ambil baris kandidat yang dipilih
+                    cand_data = df_results[
+                        df_results["Select_Label"] == selected_candidate_label
+                    ].iloc[0]
+
+                    st.markdown("### 📄 Executive Summary Laporan Kandidat")
+
+                    # Tombol Save / Print to PDF
+                    components.html(
+                        """
+                        <button onclick="window.print()" style="
+                            background-color: #0F52BA;
+                            color: white;
+                            border: none;
+                            padding: 10px 18px;
+                            border-radius: 8px;
+                            font-weight: bold;
+                            cursor: pointer;
+                            font-size: 14px;
+                            margin-bottom: 10px;
+                        ">
+                            🖨️ Cetak / Save to PDF
+                        </button>
+                        """,
+                        height=55,
+                    )
+
+                    st.write(f"**Nama Lengkap:** {cand_data.get('Nama', '-')}")
+                    st.write(f"**Email:** {cand_data.get('Email', '-')}")
+                    st.write(f"**Posisi Dilamar:** {cand_data.get('Posisi', '-')}")
+                    st.write(f"**Pengalaman:** {cand_data.get('Pengalaman', 0)} Tahun")
+                    st.write(f"**Waktu Tes:** {cand_data.get('Timestamp', '-')}")
+
+                    st.markdown("---")
+
+                    c1, c2, c3 = st.columns(3)
+                    with c1:
+                        st.metric(
+                            "Skor Kognitif Laten (Theta)",
+                            f"{float(cand_data.get('Skor_Theta', 0)):+.2f}",
+                        )
+                    with c2:
+                        st.metric(
+                            "Estimasi IQ", f"IQ ~{cand_data.get('Estimasi_IQ', '-')}"
+                        )
+                    with c3:
+                        st.metric(
+                            "Status Kesesuaian",
+                            f"{cand_data.get('Status_Kesesuaian', '-')}",
+                        )
+
+                    st.markdown("---")
+                    st.subheader("📊 Profil Radar Kompetensi Perilaku (SJT)")
+
+                    # Menyiapkan Skor Radar
+                    comp_dimensions = [
+                        "Leadership",
+                        "Stress_Tolerance",
+                        "Execution",
+                        "Integrity",
+                        "Strategic_Thinking",
+                    ]
+                    comp_values = [
+                        float(cand_data.get(dim, 0)) for dim in comp_dimensions
+                    ]
+
+                    # Menutup lingkaran Radar Chart
+                    comp_dimensions.append(comp_dimensions[0])
+                    comp_values.append(comp_values[0])
+
+                    max_radar_val = max(max(comp_values), 10)
+
+                    fig_cand = go.Figure(
+                        data=go.Scatterpolar(
+                            r=comp_values, theta=comp_dimensions, fill="toself"
+                        )
+                    )
+                    fig_cand.update_layout(
+                        polar=dict(
+                            radialaxis=dict(visible=True, range=[0, max_radar_val])
+                        ),
+                        showlegend=False,
+                    )
+
+                    rc1, rc2 = st.columns([1, 1])
+                    with rc1:
+                        st.plotly_chart(fig_cand, use_container_width=True)
+
+                    with rc2:
+                        st.markdown("### Kesimpulan & Rekomendasi HR")
+                        theta_val = float(cand_data.get("Skor_Theta", 0))
+                        if theta_val > 0.8:
+                            st.write(
+                                "🟢 **Kandidat Sangat Direkomendasikan (High Potential).** Memiliki kemampuan penalaran kognitif tingkat tinggi dan adaptif terhadap tantangan strategis."
+                            )
+                        elif theta_val >= -0.2:
+                            st.write(
+                                "🟡 **Kandidat Direkomendasikan dengan Pertimbangan.** Memiliki kapabilitas analisis yang memadai untuk lingkup kerja operasional standar."
+                            )
+                        else:
+                            st.write(
+                                "🔴 **Kurang Direkomendasikan.** Kapasitas penalaran kognitif berada di bawah standar kualifikasi minimum."
+                            )
+
+                        st.markdown("**Catatan Kerahasiaan:**")
+                        st.caption(
+                            "Hasil tes ini bersifat rahasia dan dikalkulasi secara otomatis menggunakan pemodelan Item Response Theory (IRT)."
+                        )
+                else:
+                    st.info("Belum ada data kandidat yang tersimpan.")
+
             except Exception as e:
                 st.error(f"Gagal mengambil data dari Google Sheets: {e}")
         elif admin_input != "":
