@@ -29,7 +29,7 @@ from reportlab.graphics.charts.spider import SpiderChart
 # 1. CONFIG & SESSION STATE INITIALIZATION
 # ==========================================
 st.set_page_config(
-    page_title="Executive Candidate Assessment",
+    page_title="Executive Candidate Assessment Portal - Phase 2",
     page_icon="🧠",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -37,7 +37,7 @@ st.set_page_config(
 
 ADMIN_PIN = "2273"  # PIN Rahasia Admin / HR
 
-# Custom CSS Styling (Termasuk Fixed Floating Timer)
+# Custom CSS Styling
 st.markdown(
     """
     <style>
@@ -59,7 +59,7 @@ st.markdown(
         user-select: text !important;
     }
 
-    /* Fixed Timer Canvas */
+    /* Fixed Floating Timer */
     iframe[title="st.iframe"] {
         position: fixed !important;
         top: 15px !important;
@@ -75,7 +75,9 @@ st.markdown(
 )
 
 TOTAL_TIME_SECONDS = 30 * 60  # Durasi: 30 Menit
-MAX_COG_QUESTIONS = 15        # Target jumlah soal kognitif
+MAX_COG_QUESTIONS = 15        # Target maksimal soal kognitif yang dikerjakan kandidat
+MIN_COG_QUESTIONS = 5         # Syarat minimal soal dikerjakan sebelum Early Stop
+TARGET_SE_ACCURACY = 0.32    # Threshold Standar Error untuk Early Stop IRT
 
 if "test_started" not in st.session_state:
     st.session_state.test_started = False
@@ -90,6 +92,8 @@ if "saved_to_gsheets" not in st.session_state:
 
 if "theta" not in st.session_state:
     st.session_state.theta = 0.0
+if "se_theta" not in st.session_state:
+    st.session_state.se_theta = 1.0
 if "cog_step" not in st.session_state:
     st.session_state.cog_step = 0
 if "cog_history" not in st.session_state:
@@ -101,190 +105,49 @@ if "sjt_responses" not in st.session_state:
     st.session_state.sjt_responses = {}
 
 # ==========================================
-# 2. BANK SOAL & PARAMETER PSIKOMETRI
+# 2. BANK SOAL KOGNITIF (30 ITEM VERIFIED)
 # ==========================================
 
 COGNITIVE_BANK = [
-    {
-        "id": "C01",
-        "category": "Verbal Reasoning",
-        "a": 1.2, "b": -1.5, "c": 0.25,
-        "q": "OPOSIT : BERLAWANAN = SINKRON : ...",
-        "opts": ["A. Serentak / Sejalan", "B. Terpisah", "C. Berurutan", "D. Acak"],
-        "ans": "A. Serentak / Sejalan",
-    },
-    {
-        "id": "C02",
-        "category": "Numerical Reasoning",
-        "a": 1.5, "b": -0.8, "c": 0.25,
-        "q": "Satu tim efisiensi memotong konsumsi bahan bakar dari 800 liter menjadi 680 liter. Berapa persentase efisiensi energi yang dicapai?",
-        "opts": ["A. 12%", "B. 15%", "C. 17.5%", "D. 20%"],
-        "ans": "B. 15%",
-    },
-    {
-        "id": "C03",
-        "category": "Verbal Analogy",
-        "a": 1.1, "b": -1.1, "c": 0.25,
-        "q": "INFLASI : MATA UANG = DEPRESIASI : ...",
-        "opts": ["A. Saham", "B. Aset Tetap", "C. Hutang", "D. Obligasi"],
-        "ans": "B. Aset Tetap",
-    },
-    {
-        "id": "C04",
-        "category": "Numerical Series",
-        "a": 1.3, "b": -0.6, "c": 0.25,
-        "q": "Deret Angka: 3, 6, 12, 24, 48, [ ? ]. Angka berikutnya adalah:",
-        "opts": ["A. 72", "B. 84", "C. 96", "D. 108"],
-        "ans": "C. 96",
-    },
-    {
-        "id": "C05",
-        "category": "Abstract Logic",
-        "a": 1.8, "b": 0.0, "c": 0.25,
-        "q": "Semua analis data menguasai Python. Sebagian manajer produk tidak menguasai Python. Maka:",
-        "opts": [
-            "A. Semua manajer produk adalah analis data",
-            "B. Sebagian manajer produk bukan analis data",
-            "C. Analis data tidak ada yang menjadi manajer produk",
-            "D. Tidak ada kesimpulan yang sah",
-        ],
-        "ans": "B. Sebagian manajer produk bukan analis data",
-    },
-    {
-        "id": "C06",
-        "category": "Numerical Reasoning",
-        "a": 1.6, "b": 0.2, "c": 0.25,
-        "q": "Perusahaan A dan B memiliki total anggaran Rp 450 Juta. Jika anggaran B adalah 25% lebih besar dari anggaran A, berapa besarnya anggaran A?",
-        "opts": ["A. Rp 200 Juta", "B. Rp 225 Juta", "C. Rp 250 Juta", "D. Rp 275 Juta"],
-        "ans": "A. Rp 200 Juta",
-    },
-    {
-        "id": "C07",
-        "category": "Verbal Logic",
-        "a": 1.4, "b": -0.2, "c": 0.25,
-        "q": "Jika semua proyek X bernilai tinggi dan sebagian proyek X berisiko tinggi, maka kesimpulan yang paling tepat adalah:",
-        "opts": [
-            "A. Semua proyek berisiko tinggi bernilai tinggi",
-            "B. Sebagian proyek bernilai tinggi berisiko tinggi",
-            "C. Tidak ada proyek berisiko yang bernilai tinggi",
-            "D. Proyek bernilai rendah pasti tidak berisiko",
-        ],
-        "ans": "B. Sebagian proyek bernilai tinggi berisiko tinggi",
-    },
-    {
-        "id": "C08",
-        "category": "Data Interpretation",
-        "a": 1.7, "b": 0.4, "c": 0.20,
-        "q": "Penjualan Kuartal 1 adalah Rp 100 Juta. Jika naik 10% di Q2 dan naik lagi 20% di Q3, berapa total akumulasi nilai penjualan di Q3?",
-        "opts": ["A. Rp 130 Juta", "B. Rp 132 Juta", "C. Rp 135 Juta", "D. Rp 140 Juta"],
-        "ans": "B. Rp 132 Juta",
-    },
-    {
-        "id": "C09",
-        "category": "Numerical Matrix",
-        "a": 2.0, "b": 0.8, "c": 0.20,
-        "q": "Analisis deret kuadrat bilangan prima: 4, 9, 25, 49, 121, [ ? ]. Berapakah nilai variabel berikutnya?",
-        "opts": ["A. 144", "B. 169", "C. 196", "D. 225"],
-        "ans": "B. 169",
-    },
-    {
-        "id": "C10",
-        "category": "Complex Logic",
-        "a": 1.9, "b": 1.0, "c": 0.20,
-        "q": "Karyawan A lebih senior dari B tetapi junior dari C. D lebih senior dari C. Siapa yang paling junior di antara keempatnya?",
-        "opts": ["A. Karyawan A", "B. Karyawan B", "C. Karyawan C", "D. Karyawan D"],
-        "ans": "B. Karyawan B",
-    },
-    {
-        "id": "C11",
-        "category": "Numerical Optimization",
-        "a": 2.1, "b": 1.2, "c": 0.20,
-        "q": "Mesin A memproduksi 100 unit/jam dan Mesin B memproduksi 150 unit/jam. Jika keduanya digunakan bersamaan untuk membuat 1.000 unit dan Mesin B baru dinyalakan 1 jam setelah Mesin A beroperasi, berapa jam total waktu kerja Mesin A?",
-        "opts": ["A. 3.6 Jam", "B. 4.0 Jam", "C. 4.6 Jam", "D. 5.0 Jam"],
-        "ans": "C. 4.6 Jam",
-    },
-    {
-        "id": "C12",
-        "category": "Complex Deductive",
-        "a": 2.2, "b": 1.5, "c": 0.20,
-        "q": "Sistem X hanya aktif jika Y aktif dan Z non-aktif. Jika Z aktif saat Y aktif, maka kondisi Sistem X adalah:",
-        "opts": ["A. Selalu Aktif", "B. Mutlak Non-Aktif", "C. Berjalan sebagian", "D. Tergantung variabel Y"],
-        "ans": "B. Mutlak Non-Aktif",
-    },
-    {
-        "id": "C13",
-        "category": "Data Interpretation",
-        "a": 2.1, "b": 1.8, "c": 0.20,
-        "q": "Jika ROI total Proyek A adalah 18% dalam 3 tahun dan Proyek B adalah 12% dalam 2 tahun (compounded annually), proyek mana yang secara efektif menghasilkan laju pertumbuhan tahunan (CAGR) lebih tinggi?",
-        "opts": ["A. Proyek A", "B. Proyek B", "C. Keduanya Setara", "D. Tidak cukup data"],
-        "ans": "B. Proyek B",
-    },
-    {
-        "id": "C14",
-        "category": "Advanced Analytics",
-        "a": 2.3, "b": 2.0, "c": 0.20,
-        "q": "Sebuah eksperimen A/B testing menunjukkan tingkat konversi Kontrol (A) sebesar 4% dan Variasi (B) sebesar 5%. Berapa peningkatan relatif (relative uplift) dari variasi B dibanding A?",
-        "opts": ["A. 1%", "B. 20%", "C. 25%", "D. 125%"],
-        "ans": "C. 25%",
-    },
-    {
-        "id": "C15",
-        "category": "Strategic Logic",
-        "a": 2.4, "b": 2.2, "c": 0.20,
-        "q": "Jika implikasi (p ➔ q) bernilai Salah, dan disjungsi (q ∨ r) bernilai Benar, manakah urutan nilai kebenaran dari p, q, dan r yang benar secara berurutan?",
-        "opts": ["A. Benar, Salah, Benar", "B. Benar, Benar, Salah", "C. Salah, Salah, Benar", "D. Benar, Salah, Salah"],
-        "ans": "A. Benar, Salah, Benar",
-    },
-    {
-        "id": "C16",
-        "category": "Business Acumen & Valuation",
-        "a": 2.2, "b": 1.4, "c": 0.20,
-        "q": "Sebuah unit bisnis mencatatkan Revenue Rp 10 Miliar dengan EBITDA Margin 20%. Jika valuasi bisnis didasarkan pada multiple 8x EBITDA, berapa nilai estimasi Enterprise Value (EV) bisnis tersebut?",
-        "opts": ["A. Rp 12 Miliar", "B. Rp 16 Miliar", "C. Rp 20 Miliar", "D. Rp 24 Miliar"],
-        "ans": "B. Rp 16 Miliar",
-    },
-    {
-        "id": "C17",
-        "category": "Financial Decision Making",
-        "a": 2.1, "b": 1.6, "c": 0.20,
-        "q": "Proyek A membutuhkan belanja modal (CAPEX) awal Rp 500 Juta dan menghasilkan Arus Kas Masuk Netto Rp 150 Juta/tahun selama 4 tahun. Berapa Payback Period untuk investasi ini?",
-        "opts": ["A. 2.8 Tahun", "B. 3.3 Tahun", "C. 3.5 Tahun", "D. 4.0 Tahun"],
-        "ans": "B. 3.3 Tahun",
-    },
-    {
-        "id": "C18",
-        "category": "Strategic Logic & Game Theory",
-        "a": 2.5, "b": 2.1, "c": 0.20,
-        "q": "Jika Perusahaan A menurunkan harga produk sebesar 10%, kompetitor B dipastikan akan menurunkan harga sebesar 15%. Jika elastisitas permintaan pasar bersifat inelastis (< 1), apa dampak jangka panjang bagi total pendapatan industri?",
-        "opts": [
-            "A. Total pendapatan industri akan meningkat tajam",
-            "B. Total pendapatan industri akan menurun",
-            "C. Pendapatan industri tetap stabil tanpa perubahan",
-            "D. Laba bersih kompetitor B akan berlipat ganda",
-        ],
-        "ans": "B. Total pendapatan industri akan menurun",
-    },
-    {
-        "id": "C19",
-        "category": "Data-Driven Risk Analytics",
-        "a": 2.3, "b": 1.9, "c": 0.20,
-        "q": "Dalam analisis risiko operasional, sebuah proyek memiliki 30% peluang kegagalan dengan potensi kerugian Rp 1 Miliar, dan 70% peluang sukses dengan potensi keuntungan Rp 500 Juta. Berapa nilai Harapan Moneter (Expected Monetary Value / EMV) dari proyek tersebut?",
-        "opts": ["A. + Rp 50 Juta", "B. + Rp 150 Juta", "C. + Rp 200 Juta", "D. - Rp 50 Juta"],
-        "ans": "A. + Rp 50 Juta",
-    },
-    {
-        "id": "C20",
-        "category": "Strategic Resource Allocation",
-        "a": 2.0, "b": 1.1, "c": 0.20,
-        "q": "Divisi X menghasilkan Margin Kontribusi 40% sedangkan Divisi Y menghasilkan Margin Kontribusi 25%. Jika kapasitas produksi terbatas, divisi mana yang secara ekonomis harus diprioritaskan untuk pemenuhan pesanan tambahan?",
-        "opts": [
-            "A. Divisi Y karena margin lebih rendah butuh volume",
-            "B. Divisi X karena memberikan profitabilitas per unit lebih tinggi",
-            "C. Keduanya diberi alokasi 50:50 demi keadilan",
-            "D. Tidak bisa ditentukan tanpa data biaya tetap (fixed cost)",
-        ],
-        "ans": "B. Divisi X karena memberikan profitabilitas per unit lebih tinggi",
-    },
+    # EASY LEVEL (b < -1.0)
+    {"id": "C01", "category": "Verbal Reasoning", "a": 1.2, "b": -1.8, "c": 0.25, "q": "OPOSIT : BERLAWANAN = SINKRON : ...", "opts": ["A. Serentak / Sejalan", "B. Terpisah", "C. Berurutan", "D. Acak"], "ans": "A. Serentak / Sejalan"},
+    {"id": "C02", "category": "Numerical Reasoning", "a": 1.3, "b": -1.5, "c": 0.25, "q": "Jika harga 5 unit barang adalah Rp 150.000, berapa harga 8 unit barang tersebut?", "opts": ["A. Rp 210.000", "B. Rp 240.000", "C. Rp 270.000", "D. Rp 300.000"], "ans": "B. Rp 240.000"},
+    {"id": "C03", "category": "Verbal Analogy", "a": 1.1, "b": -1.4, "c": 0.25, "q": "INFLASI : MATA UANG = DEPRESIASI : ...", "opts": ["A. Saham", "B. Aset Tetap", "C. Hutang", "D. Obligasi"], "ans": "B. Aset Tetap"},
+    {"id": "C04", "category": "Numerical Series", "a": 1.2, "b": -1.2, "c": 0.25, "q": "Deret Angka: 4, 8, 16, 32, [ ? ]. Angka berikutnya adalah:", "opts": ["A. 48", "B. 56", "C. 64", "D. 72"], "ans": "C. 64"},
+    {"id": "C05", "category": "Abstract Logic", "a": 1.0, "b": -1.6, "c": 0.25, "q": "Semua mobil membutuhkan bahan bakar. Kendaraan X adalah mobil. Kesimpulannya:", "opts": ["A. Kendaraan X tidak butuh BBM", "B. Kendaraan X membutuhkan bahan bakar", "C. Kendaraan X adalah truk", "D. BBM hanya untuk kendaraan X"], "ans": "B. Kendaraan X membutuhkan bahan bakar"},
+    {"id": "C06", "category": "Verbal Reasoning", "a": 1.2, "b": -1.1, "c": 0.25, "q": "SANGAT PENTING : KRUSIAL = SEMENTARA : ...", "opts": ["A. Abadi", "B. Transitori", "C. Tetap", "D. Konstan"], "ans": "B. Transitori"},
+    {"id": "C07", "category": "Numerical Series", "a": 1.4, "b": -1.0, "c": 0.25, "q": "Deret Angka: 100, 95, 85, 70, [ ? ]. Angka berikutnya adalah:", "opts": ["A. 50", "B. 55", "C. 60", "D. 45"], "ans": "A. 50"},
+
+    # MODERATE-EASY LEVEL (-1.0 <= b < 0.0)
+    {"id": "C08", "category": "Numerical Reasoning", "a": 1.5, "b": -0.8, "c": 0.25, "q": "Efisiensi memotong konsumsi bahan bakar dari 800L menjadi 680L. Berapa % efisiensi yang dicapai?", "opts": ["A. 12%", "B. 15%", "C. 17.5%", "D. 20%"], "ans": "B. 15%"},
+    {"id": "C09", "category": "Abstract Logic", "a": 1.4, "b": -0.6, "c": 0.25, "q": "Semua manajer memiliki laporan mingguan. Sebagian manajer hadir di rapat evaluasi. Maka:", "opts": ["A. Semua yang hadir di rapat adalah manajer", "B. Sebagian pembuat laporan harian hadir di rapat", "C. Sebagian manajer yang memiliki laporan mingguan hadir di rapat evaluasi", "D. Tidak ada manajer yang absen rapat"], "ans": "C. Sebagian manajer yang memiliki laporan mingguan hadir di rapat evaluasi"},
+    {"id": "C10", "category": "Numerical Series", "a": 1.3, "b": -0.5, "c": 0.25, "q": "Deret Angka: 3, 6, 12, 24, 48, [ ? ]. Angka berikutnya adalah:", "opts": ["A. 72", "B. 84", "C. 96", "D. 108"], "ans": "C. 96"},
+    {"id": "C11", "category": "Verbal Logic", "a": 1.4, "b": -0.3, "c": 0.25, "q": "Jika semua proyek X bernilai tinggi dan sebagian proyek X berisiko tinggi, maka:", "opts": ["A. Semua proyek berisiko tinggi bernilai tinggi", "B. Sebagian proyek bernilai tinggi berisiko tinggi", "C. Tidak ada proyek berisiko yang bernilai tinggi", "D. Proyek bernilai rendah pasti tidak berisiko"], "ans": "B. Sebagian proyek bernilai tinggi berisiko tinggi"},
+    {"id": "C12", "category": "Numerical Reasoning", "a": 1.6, "b": -0.2, "c": 0.25, "q": "Perusahaan A dan B memiliki total anggaran Rp 450 Juta. Jika anggaran B 25% lebih besar dari A, berapa anggaran A?", "opts": ["A. Rp 200 Juta", "B. Rp 225 Juta", "C. Rp 250 Juta", "D. Rp 275 Juta"], "ans": "A. Rp 200 Juta"},
+    {"id": "C13", "category": "Data Interpretation", "a": 1.5, "b": -0.1, "c": 0.25, "q": "Sebuah tim menyelesaikan 60% proyek dalam 12 hari. Jika laju kerja konstan, berapa total hari yang dibutuhkan untuk 100% proyek?", "opts": ["A. 18 Hari", "B. 20 Hari", "C. 22 Hari", "D. 24 Hari"], "ans": "B. 20 Hari"},
+
+    # MEDIUM LEVEL (0.0 <= b < 1.0)
+    {"id": "C14", "category": "Abstract Logic", "a": 1.8, "b": 0.0, "c": 0.25, "q": "Semua analis data menguasai Python. Sebagian manajer produk tidak menguasai Python. Maka:", "opts": ["A. Semua manajer produk adalah analis data", "B. Sebagian manajer produk bukan analis data", "C. Analis data tidak ada yang menjadi manajer produk", "D. Tidak ada kesimpulan yang sah"], "ans": "B. Sebagian manajer produk bukan analis data"},
+    {"id": "C15", "category": "Data Interpretation", "a": 1.7, "b": 0.3, "c": 0.20, "q": "Penjualan Q1 Rp 100 Juta. Naik 10% di Q2 dan naik lagi 20% di Q3 (berdasarkan nilai Q2). Berapa nilai penjualan di Q3?", "opts": ["A. Rp 130 Juta", "B. Rp 132 Juta", "C. Rp 135 Juta", "D. Rp 140 Juta"], "ans": "B. Rp 132 Juta"},
+    {"id": "C16", "category": "Numerical Matrix", "a": 1.9, "b": 0.5, "c": 0.20, "q": "Deret kuadrat bilangan prima: 4, 9, 25, 49, 121, [ ? ]. Nilai berikutnya:", "opts": ["A. 144", "B. 169", "C. 196", "D. 225"], "ans": "B. 169"},
+    {"id": "C17", "category": "Complex Logic", "a": 1.9, "b": 0.7, "c": 0.20, "q": "Karyawan A lebih senior dari B tetapi junior dari C. D lebih senior dari C. Siapa yang paling junior?", "opts": ["A. Karyawan A", "B. Karyawan B", "C. Karyawan C", "D. Karyawan D"], "ans": "B. Karyawan B"},
+    {"id": "C18", "category": "Strategic Resource Allocation", "a": 2.0, "b": 0.9, "c": 0.20, "q": "Divisi X margin 40%, Divisi Y margin 25%. Kapasitas produksi terbatas. Manakah yang diprioritaskan?", "opts": ["A. Divisi Y karena butuh volume", "B. Divisi X karena profitabilitas per unit lebih tinggi", "C. Alokasi 50:50 demi keadilan", "D. Tidak bisa ditentukan"], "ans": "B. Divisi X karena profitabilitas per unit lebih tinggi"},
+
+    # HARD LEVEL (1.0 <= b < 1.8) - C19 PERBAIKAN MATEMATIKA
+    {"id": "C19", "category": "Numerical Optimization", "a": 2.1, "b": 1.1, "c": 0.20, "q": "Mesin A (100 unit/jam) dan Mesin B (150 unit/jam) membuat 1.000 unit. Jika Mesin B baru dinyalakan 1 jam setelah Mesin A, berapa total waktu kerja Mesin A?", "opts": ["A. 3.6 Jam", "B. 4.0 Jam", "C. 4.6 Jam", "D. 5.0 Jam"], "ans": "C. 4.6 Jam"},
+    {"id": "C20", "category": "Complex Deductive", "a": 2.2, "b": 1.3, "c": 0.20, "q": "Sistem X hanya aktif jika Y aktif dan Z non-aktif. Jika Z aktif saat Y aktif, maka kondisi Sistem X adalah:", "opts": ["A. Selalu Aktif", "B. Mutlak Non-Aktif", "C. Berjalan sebagian", "D. Tergantung Y"], "ans": "B. Mutlak Non-Aktif"},
+    {"id": "C21", "category": "Business Acumen & Valuation", "a": 2.2, "b": 1.4, "c": 0.20, "q": "Revenue Rp 10 Miliar, EBITDA Margin 20%. Valuasi multiple 8x EBITDA. Berapa nilai Enterprise Value (EV)?", "opts": ["A. Rp 12 Miliar", "B. Rp 16 Miliar", "C. Rp 20 Miliar", "D. Rp 24 Miliar"], "ans": "B. Rp 16 Miliar"},
+    {"id": "C22", "category": "Financial Decision Making", "a": 2.1, "b": 1.5, "c": 0.20, "q": "CAPEX awal Rp 500 Juta, Arus Kas Netto Rp 150 Juta/tahun selama 4 tahun. Berapa Payback Period investasi ini?", "opts": ["A. 2.8 Tahun", "B. 3.33 Tahun", "C. 3.5 Tahun", "D. 4.0 Tahun"], "ans": "B. 3.33 Tahun"},
+    {"id": "C23", "category": "Data Interpretation", "a": 2.1, "b": 1.6, "c": 0.20, "q": "ROI total Proyek A 18% (3 tahun) vs Proyek B 12% (2 tahun) compounded. Mana yang CAGR-nya lebih tinggi?", "opts": ["A. Proyek A", "B. Proyek B", "C. Keduanya Setara", "D. Tidak cukup data"], "ans": "B. Proyek B"},
+    {"id": "C24", "category": "Data-Driven Risk Analytics", "a": 2.3, "b": 1.7, "c": 0.20, "q": "Proyek Memiliki 30% peluang gagal (rugi Rp 1 M) & 70% peluang sukses (untung Rp 500 Juta). Berapa Nilai Harapan Moneter (EMV)?", "opts": ["A. + Rp 50 Juta", "B. + Rp 150 Juta", "C. + Rp 200 Juta", "D. - Rp 50 Juta"], "ans": "A. + Rp 50 Juta"},
+
+    # VERY HARD / EXECUTIVE LEVEL (b >= 1.8)
+    {"id": "C25", "category": "Advanced Analytics", "a": 2.4, "b": 1.9, "c": 0.20, "q": "A/B testing: Kontrol A (4%), Variasi B (5%). Berapa relative uplift variasi B dibanding A?", "opts": ["A. 1%", "B. 20%", "C. 25%", "D. 125%"], "ans": "C. 25%"},
+    {"id": "C26", "category": "Strategic Logic & Game Theory", "a": 2.5, "b": 2.1, "c": 0.20, "q": "Perusahaan A turunkan harga 10%, B balas turunkan 15%. Jika elastisitas permintaan < 1, apa dampak bagi total pendapatan industri?", "opts": ["A. Pendapatan meningkat", "B. Pendapatan menurun", "C. Pendapatan stabil", "D. Laba B melipat"], "ans": "B. Pendapatan menurun"},
+    {"id": "C27", "category": "Strategic Logic", "a": 2.4, "b": 2.2, "c": 0.20, "q": "Jika implikasi (p ➔ q) Salah, dan disjungsi (q ∨ r) Benar, manakah kebenaran p, q, dan r berurutan?", "opts": ["A. Benar, Salah, Benar", "B. Benar, Benar, Salah", "C. Salah, Salah, Benar", "D. Benar, Salah, Salah"], "ans": "A. Benar, Salah, Benar"},
+    {"id": "C28", "category": "Advanced Valuation", "a": 2.5, "b": 2.3, "c": 0.20, "q": "WACC perusahaan 10%, Free Cash Flow tahun depan Rp 100 Miliar dengan pertumbuhan abadi (g) 5%. Berapa Terminal Value bisnis?", "opts": ["A. Rp 1.500 Miliar", "B. Rp 2.000 Miliar", "C. Rp 2.500 Miliar", "D. Rp 3.000 Miliar"], "ans": "B. Rp 2.000 Miliar"},
+    {"id": "C29", "category": "Complex Probability", "a": 2.6, "b": 2.4, "c": 0.15, "q": "Peluang sistem A gagal 10%, B gagal 20%. Jika kedua sistem beroperasi secara paralel (redundant), berapa peluang seluruh sistem gagal?", "opts": ["A. 2%", "B. 8%", "C. 18%", "D. 30%"], "ans": "A. 2%"},
+    {"id": "C30", "category": "Executive Decision Logic", "a": 2.6, "b": 2.5, "c": 0.15, "q": "Jika biaya marjinal (MC) melampaui pendapatan marjinal (MR) pada tingkat produksi saat ini, tindakan rasional perusahaan adalah:", "opts": ["A. Meningkatkan volume produksi", "B. Mempertahankan kapasitas konstan", "C. Mengurangi volume produksi", "D. Menaikkan anggaran pemasaran"], "ans": "C. Mengurangi volume produksi"}
 ]
 
 SJT_BANK = [
@@ -427,47 +290,46 @@ SJT_BANK = [
 ]
 
 # ==========================================
-# 3. HELPER FUNCTIONS & ALGORITMA IRT (PRECISION FIX)
+# 3. HELPER FUNCTIONS & ALGORITMA IRT
 # ==========================================
 
 def irt_3pl(theta, a, b, c):
-    """Fungsi Kerapatan Probabilitas 3PL IRT"""
+    """Kerapatan Probabilitas Model 3PL IRT"""
     val = -a * (theta - b)
     val = max(min(val, 50), -50)
     return c + (1.0 - c) / (1.0 + math.exp(val))
 
 def update_theta_mle(theta_current, history):
-    """
-    Perhitungan Estimasi Kemampuan (Ability Theta) Menggunakan Maximum Likelihood Estimation (MLE)
-    Rumus turunan dp/dtheta telah diperbaiki secara presisi menurut standar psikometri IRT 3PL.
-    """
+    """Penaksir Kemampuan (Ability Theta) MLE + Standard Error (SE) Calculation"""
     if not history:
-        return theta_current
+        return theta_current, 1.0
 
-    num, den, eps = 0.0, 0.0, 1e-9
+    num, den, info_sum, eps = 0.0, 0.0, 0.0, 1e-9
     for item in history:
         a, b, c = item["a"], item["b"], item["c"]
         u = item["response"]
         p = irt_3pl(theta_current, a, b, c)
         p = max(min(p, 0.999), 0.001)
 
-        # Turunan Resmi 3PL IRT
         p_star = (p - c) / (1.0 - c + eps)
         dp = a * (1.0 - c) * p_star * (1.0 - p_star)
         
         num += dp * (u - p) / (p * (1.0 - p) + eps)
         den += (dp ** 2) / (p * (1.0 - p) + eps)
+        info_sum += (dp ** 2) / (p * (1.0 - p) + eps)
 
     if den <= eps:
-        return theta_current
+        return theta_current, 1.0
 
     delta = num / den
-    delta = max(min(delta, 0.75), -0.75) # Bounding delta agar konvergensi stabil
-    new_theta = theta_current + delta
-    return max(min(new_theta, 3.0), -3.0)
+    delta = max(min(delta, 0.75), -0.75)
+    new_theta = max(min(theta_current + delta, 3.0), -3.0)
+    se_theta = 1.0 / math.sqrt(max(info_sum, eps))
+
+    return new_theta, round(se_theta, 3)
 
 def get_next_question(theta_current, used_ids):
-    """Mencari Soal dengan Informasi Item Maksimum (Fisher Information)"""
+    """Mencari Soal dengan Maximum Fisher Information"""
     best_q = None
     max_info = -1.0
     for q in COGNITIVE_BANK:
@@ -544,8 +406,8 @@ def render_timer():
 
     st.components.v1.html(timer_code, height=50)
 
-def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
-    """Sinkronisasi data ke Google Sheets dengan Safe Exception Handling"""
+def save_to_google_sheets(cand, theta, se_val, iq_equivalent, fit_status, comp_scores):
+    """Sinkronisasi data ke Google Sheets"""
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         existing_data = conn.read(ttl=0)
@@ -560,6 +422,7 @@ def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
                     "Posisi": cand.get("position", "N/A"),
                     "Pengalaman": cand.get("exp", 0),
                     "Skor_Theta": round(theta, 2),
+                    "Standard_Error": se_val,
                     "Estimasi_IQ": iq_equivalent,
                     "Status_Kesesuaian": fit_status,
                     "Leadership": comp_scores.get("Leadership", 0),
@@ -579,7 +442,7 @@ def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
         conn.update(data=updated_df)
         st.session_state.saved_to_gsheets = True
         return True
-    except Exception as e:
+    except Exception:
         st.toast("ℹ️ Data tersimpan secara lokal (Google Sheets offline).")
         return False
 
@@ -596,7 +459,6 @@ def draw_reportlab_radar(labels, values):
     chart.data = [values]
     chart.labels = labels
     
-    # Custom Styling
     chart.strands[0].strokeColor = colors.HexColor('#0F52BA')
     chart.strands[0].fillColor = colors.HexColor('#0F52BA33')
     chart.strands[0].strokeWidth = 2
@@ -628,49 +490,32 @@ def generate_candidate_pdf(cand_data):
     styles = getSampleStyleSheet()
     
     title_style = ParagraphStyle(
-        'DocTitle',
-        parent=styles['Heading1'],
-        fontName='Helvetica-Bold',
-        fontSize=18,
-        leading=22,
-        textColor=colors.HexColor('#0F52BA'),
-        spaceAfter=4
+        'DocTitle', parent=styles['Heading1'],
+        fontName='Helvetica-Bold', fontSize=18, leading=22,
+        textColor=colors.HexColor('#0F52BA'), spaceAfter=4
     )
     
     subtitle_style = ParagraphStyle(
-        'DocSubTitle',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=9,
-        textColor=colors.HexColor('#555555'),
-        spaceAfter=10
+        'DocSubTitle', parent=styles['Normal'],
+        fontName='Helvetica', fontSize=9,
+        textColor=colors.HexColor('#555555'), spaceAfter=10
     )
 
     h2_style = ParagraphStyle(
-        'SectionHeading',
-        parent=styles['Heading2'],
-        fontName='Helvetica-Bold',
-        fontSize=11,
-        leading=14,
-        textColor=colors.HexColor('#1E293B'),
-        spaceBefore=8,
-        spaceAfter=6
+        'SectionHeading', parent=styles['Heading2'],
+        fontName='Helvetica-Bold', fontSize=11, leading=14,
+        textColor=colors.HexColor('#1E293B'), spaceBefore=8, spaceAfter=6
     )
 
     body_style = ParagraphStyle(
-        'BodyTextCustom',
-        parent=styles['Normal'],
-        fontName='Helvetica',
-        fontSize=9,
-        leading=12,
+        'BodyTextCustom', parent=styles['Normal'],
+        fontName='Helvetica', fontSize=9, leading=12,
         textColor=colors.HexColor('#333333')
     )
 
     bold_label_style = ParagraphStyle(
-        'BoldLabel',
-        parent=body_style,
-        fontName='Helvetica-Bold',
-        textColor=colors.HexColor('#1E293B')
+        'BoldLabel', parent=body_style,
+        fontName='Helvetica-Bold', textColor=colors.HexColor('#1E293B')
     )
 
     story = []
@@ -729,7 +574,7 @@ def generate_candidate_pdf(cand_data):
     story.append(t_metrics)
     story.append(Spacer(1, 8))
 
-    # 4. Generate Radar Chart Vektor (Native ReportLab Engine)
+    # 4. Generate Radar Chart Vektor
     labels = ["Leadership", "Stress Tol.", "Execution", "Integrity", "Strategic Think."]
     raw_vals = [
         float(cand_data.get('Leadership', 0)),
@@ -740,7 +585,7 @@ def generate_candidate_pdf(cand_data):
     ]
     radar_drawing = draw_reportlab_radar(labels, raw_vals)
 
-    # 5. Tabel SJT Samping-Sampingan dengan Radar Vektor
+    # 5. Tabel SJT Samping-Sampingan
     story.append(Paragraph("📊 Profil Kompetensi Perilaku (SJT)", h2_style))
     
     sjt_table_data = [
@@ -773,7 +618,7 @@ def generate_candidate_pdf(cand_data):
     story.append(side_by_side_table)
     story.append(Spacer(1, 10))
 
-    # 6. Kesimpulan & Rekomendasi HR
+    # 6. Kesimpulan HR
     story.append(Paragraph("📋 Kesimpulan & Rekomendasi HR", h2_style))
     if theta_val > 0.8:
         recom_text = "<b>HIGH RECOMMENDED (Sangat Direkomendasikan):</b> Memiliki kapasitas kognitif tingkat tinggi serta pemikiran strategis yang sangat adaptif."
@@ -794,24 +639,22 @@ def generate_candidate_pdf(cand_data):
 # 4. USER INTERFACE FLOW
 # ==========================================
 
-# Guard jika waktu 30 menit telah habis
 if st.session_state.test_started and not st.session_state.test_finished:
     elapsed_time = time.time() - st.session_state.start_time
     if elapsed_time >= TOTAL_TIME_SECONDS:
         st.session_state.test_finished = True
         st.rerun()
 
-st.title("🛡️ System Asesmen General Kandidat")
-st.caption("Standardized Adaptive Testing & Behavioral Competency Evaluation System")
+st.title("🛡️ System Asesmen General Kandidat - Phase 2")
+st.caption("Standardized Adaptive Testing (IRT 3PL Expanded Bank) & Behavioral Evaluation System")
 
-# --- PHASE 1: REGISTRASI & MODE ADMIN DI HALAMAN AWAL ---
+# --- PHASE 1: REGISTRASI & ADMIN ---
 if not st.session_state.test_started and not st.session_state.test_finished:
     
-    # 🔐 AKSES KONTROL REKAP LAPORAN (UNTUK ADMIN/HR DI HALAMAN AWAL)
     with st.expander("🔐 Akses Laporan Hasil (Khusus Admin / HR)", expanded=False):
         admin_input = st.text_input("Masukkan PIN Admin/HR:", type="password", key="admin_pin_main")
         if admin_input == ADMIN_PIN:
-            st.success("🔓 Akses Diberikan! Berikut Rekap Database Hasil Asesmen Kandidat:")
+            st.success("🔓 Akses Diberikan! Rekap Database Hasil Asesmen Kandidat:")
             try:
                 conn = st.connection("gsheets", type=GSheetsConnection)
                 df_results = conn.read(ttl=0)
@@ -881,17 +724,8 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                     st.markdown("---")
                     st.subheader("📊 Profil Radar Kompetensi Perilaku (SJT)")
 
-                    comp_dimensions = [
-                        "Leadership",
-                        "Stress_Tolerance",
-                        "Execution",
-                        "Integrity",
-                        "Strategic_Thinking",
-                    ]
-                    comp_values = [
-                        float(cand_data.get(dim, 0)) for dim in comp_dimensions
-                    ]
-
+                    comp_dimensions = ["Leadership", "Stress_Tolerance", "Execution", "Integrity", "Strategic_Thinking"]
+                    comp_values = [float(cand_data.get(dim, 0)) for dim in comp_dimensions]
                     comp_dimensions.append(comp_dimensions[0])
                     comp_values.append(comp_values[0])
 
@@ -899,24 +733,14 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 
                     fig_cand = go.Figure(
                         data=go.Scatterpolar(
-                            r=comp_values, 
-                            theta=comp_dimensions, 
-                            fill="toself",
-                            line=dict(color="#0F52BA"),
-                            fillcolor="rgba(15, 82, 186, 0.2)"
+                            r=comp_values, theta=comp_dimensions, fill="toself",
+                            line=dict(color="#0F52BA"), fillcolor="rgba(15, 82, 186, 0.2)"
                         )
                     )
                     fig_cand.update_layout(
-                        paper_bgcolor="rgba(0,0,0,0)",
-                        plot_bgcolor="rgba(0,0,0,0)",
-                        polar=dict(
-                            bgcolor="rgba(0,0,0,0)",
-                            radialaxis=dict(visible=True, range=[0, max_radar_val], color="#888888"),
-                            angularaxis=dict(color="#888888")
-                        ),
-                        showlegend=False,
-                        margin=dict(l=30, r=30, t=20, b=20),
-                        height=350
+                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                        polar=dict(bgcolor="rgba(0,0,0,0)", radialaxis=dict(visible=True, range=[0, max_radar_val], color="#888888")),
+                        showlegend=False, margin=dict(l=30, r=30, t=20, b=20), height=350
                     )
 
                     rc1, rc2 = st.columns([1, 1])
@@ -927,26 +751,17 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                         st.markdown("### Kesimpulan & Rekomendasi HR")
                         theta_val = float(cand_data.get("Skor_Theta", 0))
                         if theta_val > 0.8:
-                            st.write(
-                                "🟢 **Kandidat Sangat Direkomendasikan (High Potential).** Memiliki kemampuan penalaran kognitif tingkat tinggi dan adaptif terhadap tantangan strategis."
-                            )
+                            st.write("🟢 **Kandidat Sangat Direkomendasikan (High Potential).**")
                         elif theta_val >= -0.2:
-                            st.write(
-                                "🟡 **Kandidat Direkomendasikan dengan Pertimbangan.** Memiliki kapabilitas analisis yang memadai untuk lingkup kerja operasional standar."
-                            )
+                            st.write("🟡 **Kandidat Direkomendasikan dengan Pertimbangan.**")
                         else:
-                            st.write(
-                                "🔴 **Kurang Direkomendasikan.** Kapasitas penalaran kognitif berada di bawah standar kualifikasi minimum."
-                            )
+                            st.write("🔴 **Kurang Direkomendasikan.**")
 
-                        st.markdown("**Catatan Kerahasiaan:**")
-                        st.caption(
-                            "Hasil tes ini bersifat rahasia dan dikalkulasi secara otomatis menggunakan pemodelan Item Response Theory (IRT)."
-                        )
+                        st.caption("Hasil dikalkulasi menggunakan pemodelan Item Response Theory (IRT).")
                 else:
                     st.info("Belum ada data kandidat yang tersimpan di Google Sheets.")
 
-            except Exception as e:
+            except Exception:
                 st.info("💡 Mode Offline Active. Data lokal belum terhubung dengan Google Sheets secrets.")
         elif admin_input != "":
             st.error("❌ PIN Salah. Akses Ditolak.")
@@ -961,43 +776,27 @@ if not st.session_state.test_started and not st.session_state.test_finished:
             email = st.text_input("Email Profesional*")
             level = st.selectbox(
                 "Level Jabatan*",
-                [
-                    "Staf / Officer",
-                    "Supervisor / Team Lead",
-                    "Manager / Head",
-                    "Executive / General Management",
-                ],
+                ["Staf / Officer", "Supervisor / Team Lead", "Manager / Head", "Executive / General Management"],
             )
         with col2:
             position = st.selectbox(
                 "Posisi / Divisi Dilamar*",
-                [
-                    "Operations, HR & Admin",
-                    "Software Engineering & IT",
-                    "Data & Analytics",
-                    "Finance, Accounting & Strategy",
-                    "Sales & Marketing",
-                    "General Management / Business Unit",
-                ],
+                ["Operations, HR & Admin", "Software Engineering & IT", "Data & Analytics", "Finance, Accounting & Strategy", "Sales & Marketing", "General Management / Business Unit"],
             )
             experience = st.slider("Pengalaman Kerja (Tahun)", 0, 20, 3)
 
         st.info(
-            "📌 **Instruksi Ujian:**\n"
+            "📌 **Instruksi Ujian (Expanded Engine):**\n"
             "- Durasi total tes adalah **30 Menit**.\n"
-            "- Terdiri dari 2 Bagian: **Penalaran Kognitif Adaptif (15 Soal)** dan **Skenario Kepemimpinan / SJT (8 Soal)**.\n"
-            "- Tingkat kesulitan soal disesuaikan secara otomatis berdasarkan jawaban Anda."
+            "- Terdiri dari 2 Bagian: **Penalaran Kognitif Adaptif IRT (Max 15 Soal)** dan **SJT Kepemimpinan (8 Soal)**.\n"
+            "- Soal disesuaikan secara otomatis dengan tingkat presisi tinggi berdasarkan respon jawaban Anda."
         )
 
         submit = st.form_submit_button("Mulai Sesi Asesmen")
         if submit:
             if fullname and email:
                 st.session_state.candidate_info = {
-                    "name": fullname,
-                    "email": email,
-                    "level": level,
-                    "position": position,
-                    "exp": experience,
+                    "name": fullname, "email": email, "level": level, "position": position, "exp": experience,
                 }
                 st.session_state.test_started = True
                 st.session_state.start_time = time.time()
@@ -1013,23 +812,22 @@ elif st.session_state.test_started and not st.session_state.test_finished:
     current_step = st.session_state.cog_step + len(st.session_state.sjt_responses)
     st.progress(min(current_step / total_expected_steps, 1.0))
 
-    # BAGIAN A: TES KOGNITIF ADAPTIF
-    if st.session_state.cog_step < MAX_COG_QUESTIONS:
+    # BAGIAN A: TES KOGNITIF ADAPTIF (EARLY STOPPING DENGAN SYARAT MINIMAL SOAL)
+    is_early_stopped = (st.session_state.cog_step >= MIN_COG_QUESTIONS) and (st.session_state.se_theta <= TARGET_SE_ACCURACY)
+    
+    if st.session_state.cog_step < MAX_COG_QUESTIONS and not is_early_stopped:
         next_q = get_next_question(st.session_state.theta, st.session_state.used_cog_ids)
         if next_q:
             st.session_state.used_cog_ids.add(next_q["id"])
             st.markdown(
-                f"### Bagian 1: Penalaran Kognitif (Soal {st.session_state.cog_step + 1} dari {MAX_COG_QUESTIONS})"
+                f"### Bagian 1: Penalaran Kognitif (Soal {st.session_state.cog_step + 1} dari Max {MAX_COG_QUESTIONS})"
             )
-            st.caption(f"Kategori Domain: **{next_q['category']}**")
+            st.caption(f"Kategori Domain: **{next_q['category']}** | Estimasi Presisi Sistem (SE): `{st.session_state.se_theta:.3f}`")
 
             with st.container():
                 st.markdown(f"**{next_q['q']}**")
                 user_ans = st.radio(
-                    "Pilih Jawaban Anda:",
-                    next_q["opts"],
-                    index=None,
-                    key=f"cog_radio_{next_q['id']}",
+                    "Pilih Jawaban Anda:", next_q["opts"], index=None, key=f"cog_radio_{next_q['id']}"
                 )
 
                 if st.button("Simpan & Lanjutkan »", key=f"btn_{next_q['id']}"):
@@ -1038,14 +836,9 @@ elif st.session_state.test_started and not st.session_state.test_finished:
                     else:
                         is_correct = 1 if user_ans == next_q["ans"] else 0
                         st.session_state.cog_history.append(
-                            {
-                                "a": next_q["a"],
-                                "b": next_q["b"],
-                                "c": next_q["c"],
-                                "response": is_correct,
-                            }
+                            {"a": next_q["a"], "b": next_q["b"], "c": next_q["c"], "response": is_correct}
                         )
-                        st.session_state.theta = update_theta_mle(
+                        st.session_state.theta, st.session_state.se_theta = update_theta_mle(
                             st.session_state.theta, st.session_state.cog_history
                         )
                         st.session_state.cog_step += 1
@@ -1061,31 +854,22 @@ elif st.session_state.test_started and not st.session_state.test_finished:
 
         if sjt_index < len(SJT_BANK):
             q_sjt = SJT_BANK[sjt_index]
-            st.caption(
-                f"Soal {sjt_index + 1} dari {len(SJT_BANK)} | Dimensi Kompetensi: **{q_sjt['dimension']}**"
-            )
+            st.caption(f"Soal {sjt_index + 1} dari {len(SJT_BANK)} | Dimensi: **{q_sjt['dimension']}**")
             st.markdown(f"**{q_sjt['scenario']}**")
 
             sjt_choice = st.radio(
-                "Pilih Tindakan Efektif Menurut Anda:",
-                list(q_sjt["options"].values()),
-                index=None,
-                key=f"sjt_radio_{q_sjt['id']}",
+                "Pilih Tindakan Efektif Menurut Anda:", list(q_sjt["options"].values()), index=None, key=f"sjt_radio_{q_sjt['id']}"
             )
 
             if st.button("Kirim Jawaban SJT »", key=f"sjt_btn_{q_sjt['id']}"):
                 if sjt_choice is None:
                     st.warning("⚠️ Harap pilih salah satu opsi tindakan.")
                 else:
-                    selected_key = [
-                        k for k, v in q_sjt["options"].items() if v == sjt_choice
-                    ][0]
+                    selected_key = [k for k, v in q_sjt["options"].items() if v == sjt_choice][0]
                     st.session_state.sjt_responses[q_sjt["id"]] = q_sjt["scores"][selected_key]
                     st.rerun()
         else:
-            st.success(
-                "Seluruh bagian tes telah diisi. Klik tombol di bawah untuk mengevaluasi hasil."
-            )
+            st.success("Seluruh bagian tes telah diisi. Klik tombol di bawah untuk mengevaluasi hasil.")
             if st.button("🟢 SELESAIKAN DAN EVALUASI HASIL"):
                 st.session_state.test_finished = True
                 st.rerun()
@@ -1098,30 +882,18 @@ elif st.session_state.test_finished:
     iq_equivalent = max(70, min(145, iq_equivalent))
     fit_status = "Tinggi (Recommended)" if st.session_state.theta > 0.5 else "Moderat"
 
-    comp_scores = {
-        "Leadership": 0,
-        "Stress_Tolerance": 0,
-        "Execution": 0,
-        "Integrity": 0,
-        "Strategic_Thinking": 0,
-    }
+    comp_scores = {"Leadership": 0, "Stress_Tolerance": 0, "Execution": 0, "Integrity": 0, "Strategic_Thinking": 0}
     for resp in st.session_state.sjt_responses.values():
         for k, v in resp.items():
             comp_scores[k] = comp_scores.get(k, 0) + v
 
-    # Simpan otomatis ke Google Sheets
     if not st.session_state.saved_to_gsheets:
         save_to_google_sheets(
-            cand,
-            st.session_state.theta,
-            iq_equivalent,
-            fit_status,
-            comp_scores,
+            cand, st.session_state.theta, st.session_state.se_theta,
+            iq_equivalent, fit_status, comp_scores
         )
 
     st.balloons()
-    
-    # TAMPILAN UNTUK KANDIDAT
     st.success("✅ **Asesmen Berhasil Diselesaikan!**")
     st.info(
         f"Terima kasih **{cand.get('name', 'Kandidat')}**, jawaban Anda telah berhasil direkam dan dikirim ke tim HR. "
@@ -1131,8 +903,6 @@ elif st.session_state.test_finished:
 # --- FOOTER ---
 st.markdown("---")
 st.markdown(
-    "<div style='text-align: center; color: #888888; font-size: 13px; font-weight: 500;'>"
-    "Created by Iqbal Mantam"
-    "</div>",
+    "<div style='text-align: center; color: #888888; font-size: 13px; font-weight: 500;'>Created by Iqbal Mantam</div>",
     unsafe_allow_html=True,
 )
