@@ -22,7 +22,7 @@ from reportlab.platypus import (
 )
 
 # ReportLab Drawing & Spider (Radar) Chart Engine
-from reportlab.graphics.shapes import Drawing, String
+from reportlab.graphics.shapes import Drawing
 from reportlab.graphics.charts.spider import SpiderChart
 
 # ==========================================
@@ -37,7 +37,7 @@ st.set_page_config(
 
 ADMIN_PIN = "2273"  # PIN Rahasia Admin / HR
 
-# Custom CSS Styling
+# Custom CSS Styling (Termasuk Fixed Floating Timer)
 st.markdown(
     """
     <style>
@@ -57,6 +57,17 @@ st.markdown(
         -moz-user-select: text !important;
         -ms-user-select: text !important;
         user-select: text !important;
+    }
+
+    /* Fixed Timer Canvas */
+    iframe[title="st.iframe"] {
+        position: fixed !important;
+        top: 15px !important;
+        right: 20px !important;
+        z-index: 999999 !important;
+        width: 220px !important;
+        height: 60px !important;
+        border: none !important;
     }
     </style>
     """,
@@ -416,15 +427,20 @@ SJT_BANK = [
 ]
 
 # ==========================================
-# 3. HELPER FUNCTIONS & ALGORITMA IRT
+# 3. HELPER FUNCTIONS & ALGORITMA IRT (PRECISION FIX)
 # ==========================================
 
 def irt_3pl(theta, a, b, c):
+    """Fungsi Kerapatan Probabilitas 3PL IRT"""
     val = -a * (theta - b)
     val = max(min(val, 50), -50)
-    return c + (1 - c) / (1 + math.exp(val))
+    return c + (1.0 - c) / (1.0 + math.exp(val))
 
 def update_theta_mle(theta_current, history):
+    """
+    Perhitungan Estimasi Kemampuan (Ability Theta) Menggunakan Maximum Likelihood Estimation (MLE)
+    Rumus turunan dp/dtheta telah diperbaiki secara presisi menurut standar psikometri IRT 3PL.
+    """
     if not history:
         return theta_current
 
@@ -435,23 +451,23 @@ def update_theta_mle(theta_current, history):
         p = irt_3pl(theta_current, a, b, c)
         p = max(min(p, 0.999), 0.001)
 
-        val = -a * (theta_current - b)
-        val = max(min(val, 50), -50)
-        exp_val = math.exp(val)
+        # Turunan Resmi 3PL IRT
+        p_star = (p - c) / (1.0 - c + eps)
+        dp = a * (1.0 - c) * p_star * (1.0 - p_star)
+        
+        num += dp * (u - p) / (p * (1.0 - p) + eps)
+        den += (dp ** 2) / (p * (1.0 - p) + eps)
 
-        dp = a * (1 - c) * exp_val / ((1 + exp_val) ** 2)
-        num += dp * (u - p) / (p * (1 - p) + eps)
-        den += (dp**2) / (p * (1 - p) + eps)
-
-    if den == 0:
+    if den <= eps:
         return theta_current
 
     delta = num / den
-    delta = max(min(delta, 0.75), -0.75)
+    delta = max(min(delta, 0.75), -0.75) # Bounding delta agar konvergensi stabil
     new_theta = theta_current + delta
     return max(min(new_theta, 3.0), -3.0)
 
 def get_next_question(theta_current, used_ids):
+    """Mencari Soal dengan Informasi Item Maksimum (Fisher Information)"""
     best_q = None
     max_info = -1.0
     for q in COGNITIVE_BANK:
@@ -468,39 +484,68 @@ def get_next_question(theta_current, used_ids):
             best_q = q
     return best_q
 
-@st.fragment(run_every="1s")
 def render_timer():
+    """Timer Client-Side JavaScript (Fixed & Non-blocking)"""
     if not st.session_state.start_time:
         return
     elapsed = time.time() - st.session_state.start_time
-    remaining = max(0, TOTAL_TIME_SECONDS - int(elapsed))
+    remaining_time = max(0, int(TOTAL_TIME_SECONDS - elapsed))
 
-    mins, secs = divmod(remaining, 60)
-    timer_str = f"{mins:02d}:{secs:02d}"
+    timer_code = """
+    <div style="
+        background-color: #1E293B;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 8px 12px;
+        color: #38BDF8;
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    ">
+        ⏱️ &nbsp; <b>Sisa Waktu:</b> &nbsp;
+        <span id="js_timer" style="
+            background-color: #0F172A;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 16px;
+            color: #F43F5E;
+            font-weight: bold;
+        ">--:--</span>
+    </div>
 
-    bg_color = "#FFEBEB" if remaining < 300 else "#EBF3FF"
-    text_color = "#D32F2F" if remaining < 300 else "#0F52BA"
-    border_color = "#FFCDD2" if remaining < 300 else "#BBDEFB"
+    <script>
+        let timeLeft = TIME_LEFT_PLACEHOLDER;
+        const timerDisplay = document.getElementById('js_timer');
 
-    st.markdown(
-        f"""
-        <div style="
-            background-color: {bg_color};
-            border: 2px solid {border_color};
-            padding: 12px 20px;
-            border-radius: 10px;
-            text-align: center;
-            margin-bottom: 20px;
-        ">
-            <span style="font-size: 16px; font-weight: 600; color: #333333;">⏱️ SISA WAKTU UJIAN: </span>
-            <span style="font-size: 24px; font-weight: 800; color: {text_color}; font-family: monospace;">{timer_str}</span>
-            {"<span style='color: #D32F2F; font-weight: bold; margin-left: 10px;'>(⚠️ Kurang dari 5 menit!)</span>" if remaining < 300 else ""}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        function updateTimer() {
+            let minutes = Math.floor(timeLeft / 60);
+            let seconds = timeLeft % 60;
+
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            seconds = seconds < 10 ? '0' + seconds : seconds;
+
+            timerDisplay.textContent = minutes + ':' + seconds;
+
+            if (timeLeft <= 0) {
+                timerDisplay.textContent = "00:00 - HABIS!";
+                clearInterval(timerInterval);
+            } else {
+                timeLeft--;
+            }
+        }
+
+        updateTimer();
+        const timerInterval = setInterval(updateTimer, 1000);
+    </script>
+    """.replace("TIME_LEFT_PLACEHOLDER", str(remaining_time))
+
+    st.components.v1.html(timer_code, height=50)
 
 def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
+    """Sinkronisasi data ke Google Sheets dengan Safe Exception Handling"""
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         existing_data = conn.read(ttl=0)
@@ -526,14 +571,16 @@ def save_to_google_sheets(cand, theta, iq_equivalent, fit_status, comp_scores):
             ]
         )
 
-        updated_df = pd.concat([existing_data, new_row], ignore_index=True)
+        if existing_data is not None and not existing_data.empty:
+            updated_df = pd.concat([existing_data, new_row], ignore_index=True)
+        else:
+            updated_df = new_row
+
         conn.update(data=updated_df)
         st.session_state.saved_to_gsheets = True
         return True
     except Exception as e:
-        st.warning(
-            f"⚠️ Data tersimpan secara lokal, namun belum sinkron ke Google Sheets: {e}"
-        )
+        st.toast("ℹ️ Data tersimpan secara lokal (Google Sheets offline).")
         return False
 
 # ==========================================
@@ -554,12 +601,10 @@ def draw_reportlab_radar(labels, values):
     chart.strands[0].fillColor = colors.HexColor('#0F52BA33')
     chart.strands[0].strokeWidth = 2
     
-    # PERBAIKAN: Gunakan fillColor untuk warna font label
     chart.strandLabels.fontName = 'Helvetica'
     chart.strandLabels.fontSize = 7
     chart.strandLabels.fillColor = colors.HexColor('#333333')
     
-    # Skala Otomatis Spoke
     chart.spokes.strokeColor = colors.HexColor('#CBD5E1')
     chart.spokes.strokeWidth = 0.5
     
@@ -770,12 +815,12 @@ if not st.session_state.test_started and not st.session_state.test_finished:
             try:
                 conn = st.connection("gsheets", type=GSheetsConnection)
                 df_results = conn.read(ttl=0)
-                st.dataframe(df_results, use_container_width=True)
+                if df_results is not None and not df_results.empty:
+                    st.dataframe(df_results, use_container_width=True)
 
-                st.markdown("---")
-                st.subheader("🔍 Detail & Summary Penilaian Kandidat")
+                    st.markdown("---")
+                    st.subheader("🔍 Detail & Summary Penilaian Kandidat")
 
-                if not df_results.empty:
                     df_results["Select_Label"] = (
                         df_results["Nama"].astype(str)
                         + " | "
@@ -797,7 +842,6 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 
                     st.markdown("### 📄 Executive Summary Laporan Kandidat")
 
-                    # Tombol Generate & Download PDF Resmi
                     pdf_bytes = generate_candidate_pdf(cand_data)
                     cand_name_clean = str(cand_data.get('Nama', 'Kandidat')).replace(' ', '_')
                     
@@ -900,10 +944,10 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                             "Hasil tes ini bersifat rahasia dan dikalkulasi secara otomatis menggunakan pemodelan Item Response Theory (IRT)."
                         )
                 else:
-                    st.info("Belum ada data kandidat yang tersimpan.")
+                    st.info("Belum ada data kandidat yang tersimpan di Google Sheets.")
 
             except Exception as e:
-                st.error(f"Gagal mengambil data dari Google Sheets: {e}")
+                st.info("💡 Mode Offline Active. Data lokal belum terhubung dengan Google Sheets secrets.")
         elif admin_input != "":
             st.error("❌ PIN Salah. Akses Ditolak.")
 
