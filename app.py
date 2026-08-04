@@ -22,7 +22,7 @@ from reportlab.platypus import (
 )
 
 # ReportLab Drawing & Spider (Radar) Chart Engine
-from reportlab.graphics.shapes import Drawing, String
+from reportlab.graphics.shapes import Drawing
 from reportlab.graphics.charts.spider import SpiderChart
 
 # ==========================================
@@ -66,6 +66,9 @@ st.markdown(
 TOTAL_TIME_SECONDS = 30 * 60  # Durasi: 30 Menit
 MAX_COG_QUESTIONS = 15        # Target jumlah soal kognitif
 
+# Inisialisasi Session State
+if "admin_authenticated" not in st.session_state:
+    st.session_state.admin_authenticated = False
 if "test_started" not in st.session_state:
     st.session_state.test_started = False
 if "test_finished" not in st.session_state:
@@ -554,7 +557,6 @@ def draw_reportlab_radar(labels, values):
     chart.strands[0].fillColor = colors.HexColor('#0F52BA33')
     chart.strands[0].strokeWidth = 2
     
-    # PERBAIKAN: Gunakan fillColor untuk warna font label
     chart.strandLabels.fontName = 'Helvetica'
     chart.strandLabels.fontSize = 7
     chart.strandLabels.fillColor = colors.HexColor('#333333')
@@ -763,10 +765,38 @@ st.caption("Standardized Adaptive Testing & Behavioral Competency Evaluation Sys
 if not st.session_state.test_started and not st.session_state.test_finished:
     
     # 🔐 AKSES KONTROL REKAP LAPORAN (UNTUK ADMIN/HR DI HALAMAN AWAL)
-    with st.expander("🔐 Akses Laporan Hasil (Khusus Admin / HR)", expanded=False):
-        admin_input = st.text_input("Masukkan PIN Admin/HR:", type="password", key="admin_pin_main")
-        if admin_input == ADMIN_PIN:
+    with st.expander("🔐 Autentikasi Panel Manajemen HRD", expanded=False):
+        if not st.session_state.admin_authenticated:
+            with st.form("admin_login_form"):
+                admin_input = st.text_input(
+                    "Masukkan Password Akses Admin HRD:",
+                    type="password",
+                    key="admin_pin_main"
+                )
+                
+                col_b1, col_b2 = st.columns(2)
+                with col_b1:
+                    submit_login = st.form_submit_button("Masuk Panel", type="primary", use_container_width=True)
+                with col_b2:
+                    cancel_login = st.form_submit_button("Kembali ke Menu", use_container_width=True)
+
+            if submit_login:
+                if admin_input.strip() == str(ADMIN_PIN):
+                    st.session_state.admin_authenticated = True
+                    st.success("🔓 Akses Diberikan! Memuat data...")
+                    st.rerun()
+                else:
+                    st.error("❌ Password Salah! Akses ditolak.")
+            if cancel_login:
+                st.session_state.admin_authenticated = False
+                st.rerun()
+
+        else:
             st.success("🔓 Akses Diberikan! Berikut Rekap Database Hasil Asesmen Kandidat:")
+            if st.button("🔴 Logout / Keluar Panel"):
+                st.session_state.admin_authenticated = False
+                st.rerun()
+
             try:
                 conn = st.connection("gsheets", type=GSheetsConnection)
                 df_results = conn.read(ttl=0)
@@ -904,8 +934,6 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 
             except Exception as e:
                 st.error(f"Gagal mengambil data dari Google Sheets: {e}")
-        elif admin_input != "":
-            st.error("❌ PIN Salah. Akses Ditolak.")
 
     st.markdown("---")
 
