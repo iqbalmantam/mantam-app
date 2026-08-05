@@ -75,9 +75,9 @@ st.markdown(
 )
 
 TOTAL_TIME_SECONDS = 30 * 60  # Durasi: 30 Menit
-MAX_COG_QUESTIONS = 15        # Target maksimal soal kognitif yang dikerjakan kandidat
-MIN_COG_QUESTIONS = 5         # Syarat minimal soal dikerjakan sebelum Early Stop
-TARGET_SE_ACCURACY = 0.32    # Threshold Standar Error untuk Early Stop IRT
+MAX_COG_QUESTIONS = 15        # Target maksimal soal kognitif
+MIN_COG_QUESTIONS = 5         # Syarat minimal soal sebelum Early Stop
+TARGET_SE_ACCURACY = 0.32    # Threshold Standard Error IRT
 
 if "test_started" not in st.session_state:
     st.session_state.test_started = False
@@ -100,6 +100,8 @@ if "cog_history" not in st.session_state:
     st.session_state.cog_history = []
 if "used_cog_ids" not in st.session_state:
     st.session_state.used_cog_ids = set()
+if "current_q_id" not in st.session_state:
+    st.session_state.current_q_id = None
 
 if "sjt_responses" not in st.session_state:
     st.session_state.sjt_responses = {}
@@ -133,7 +135,7 @@ COGNITIVE_BANK = [
     {"id": "C17", "category": "Complex Logic", "a": 1.9, "b": 0.7, "c": 0.20, "q": "Karyawan A lebih senior dari B tetapi junior dari C. D lebih senior dari C. Siapa yang paling junior?", "opts": ["A. Karyawan A", "B. Karyawan B", "C. Karyawan C", "D. Karyawan D"], "ans": "B. Karyawan B"},
     {"id": "C18", "category": "Strategic Resource Allocation", "a": 2.0, "b": 0.9, "c": 0.20, "q": "Divisi X margin 40%, Divisi Y margin 25%. Kapasitas produksi terbatas. Manakah yang diprioritaskan?", "opts": ["A. Divisi Y karena butuh volume", "B. Divisi X karena profitabilitas per unit lebih tinggi", "C. Alokasi 50:50 demi keadilan", "D. Tidak bisa ditentukan"], "ans": "B. Divisi X karena profitabilitas per unit lebih tinggi"},
 
-    # HARD LEVEL (1.0 <= b < 1.8) - C19 PERBAIKAN MATEMATIKA
+    # HARD LEVEL (1.0 <= b < 1.8)
     {"id": "C19", "category": "Numerical Optimization", "a": 2.1, "b": 1.1, "c": 0.20, "q": "Mesin A (100 unit/jam) dan Mesin B (150 unit/jam) membuat 1.000 unit. Jika Mesin B baru dinyalakan 1 jam setelah Mesin A, berapa total waktu kerja Mesin A?", "opts": ["A. 3.6 Jam", "B. 4.0 Jam", "C. 4.6 Jam", "D. 5.0 Jam"], "ans": "C. 4.6 Jam"},
     {"id": "C20", "category": "Complex Deductive", "a": 2.2, "b": 1.3, "c": 0.20, "q": "Sistem X hanya aktif jika Y aktif dan Z non-aktif. Jika Z aktif saat Y aktif, maka kondisi Sistem X adalah:", "opts": ["A. Selalu Aktif", "B. Mutlak Non-Aktif", "C. Berjalan sebagian", "D. Tergantung Y"], "ans": "B. Mutlak Non-Aktif"},
     {"id": "C21", "category": "Business Acumen & Valuation", "a": 2.2, "b": 1.4, "c": 0.20, "q": "Revenue Rp 10 Miliar, EBITDA Margin 20%. Valuasi multiple 8x EBITDA. Berapa nilai Enterprise Value (EV)?", "opts": ["A. Rp 12 Miliar", "B. Rp 16 Miliar", "C. Rp 20 Miliar", "D. Rp 24 Miliar"], "ans": "B. Rp 16 Miliar"},
@@ -300,7 +302,7 @@ def irt_3pl(theta, a, b, c):
     return c + (1.0 - c) / (1.0 + math.exp(val))
 
 def update_theta_mle(theta_current, history):
-    """Penaksir Kemampuan (Ability Theta) MLE + Standard Error (SE) Calculation"""
+    """Penaksir Kemampuan (Ability Theta) MLE Standard + Standard Error (SE)"""
     if not history:
         return theta_current, 1.0
 
@@ -311,8 +313,8 @@ def update_theta_mle(theta_current, history):
         p = irt_3pl(theta_current, a, b, c)
         p = max(min(p, 0.999), 0.001)
 
-        p_star = (p - c) / (1.0 - c + eps)
-        dp = a * (1.0 - c) * p_star * (1.0 - p_star)
+        # Standar turunan 3PL
+        dp = a * ((p - c) / (1.0 - c + eps)) * (1.0 - p)
         
         num += dp * (u - p) / (p * (1.0 - p) + eps)
         den += (dp ** 2) / (p * (1.0 - p) + eps)
@@ -345,6 +347,15 @@ def get_next_question(theta_current, used_ids):
             max_info = info
             best_q = q
     return best_q
+
+def get_fit_status_text(theta_val):
+    """Helper Pemetaan Status Kesesuaian Kognitif yang Konsisten"""
+    if theta_val > 0.8:
+        return "Sangat Tinggi (High Potential)"
+    elif theta_val >= -0.2:
+        return "Moderat (Recommended)"
+    else:
+        return "Rendah (Not Recommended)"
 
 def render_timer():
     """Timer Client-Side JavaScript (Fixed & Non-blocking)"""
@@ -443,6 +454,7 @@ def save_to_google_sheets(cand, theta, se_val, iq_equivalent, fit_status, comp_s
         st.session_state.saved_to_gsheets = True
         return True
     except Exception:
+        st.session_state.saved_to_gsheets = True  # Mencegah loop panggilan ulang di mode offline
         st.toast("ℹ️ Data tersimpan secara lokal (Google Sheets offline).")
         return False
 
@@ -553,7 +565,7 @@ def generate_candidate_pdf(cand_data):
     story.append(Paragraph("🧠 Evaluasi Kognitif (IRT)", h2_style))
     theta_val = float(cand_data.get('Skor_Theta', 0))
     iq_val = str(cand_data.get('Estimasi_IQ', '-'))
-    fit_val = str(cand_data.get('Status_Kesesuaian', '-'))
+    fit_val = str(cand_data.get('Status_Kesesuaian', get_fit_status_text(theta_val)))
 
     metrics_table_data = [
         [Paragraph("Skor Theta (Ability)", bold_label_style), Paragraph("Estimasi IQ", bold_label_style), Paragraph("Status Kesesuaian", bold_label_style)],
@@ -596,7 +608,7 @@ def generate_candidate_pdf(cand_data):
         [Paragraph("Integrity & Ethics", body_style), Paragraph(str(cand_data.get('Integrity', 0)), body_style)],
         [Paragraph("Strategic Thinking", body_style), Paragraph(str(cand_data.get('Strategic_Thinking', 0)), body_style)],
     ]
-    t_sjt = Table(sjt_table_data, colWidths=[200, 60])
+    t_sjt = Table(sjt_table_data, colWidths=[190, 50])
     t_sjt.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#F1F5F9')),
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
@@ -608,7 +620,7 @@ def generate_candidate_pdf(cand_data):
         ('INNERGRID', (0,0), (-1,-1), 0.5, colors.HexColor('#E2E8F0')),
     ]))
 
-    side_by_side_table = Table([[t_sjt, radar_drawing]], colWidths=[270, 250])
+    side_by_side_table = Table([[t_sjt, radar_drawing]], colWidths=[260, 240])
     side_by_side_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('ALIGN', (1,0), (1,0), 'CENTER'),
@@ -673,91 +685,93 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                         + ")"
                     )
 
-                    selected_candidate_label = st.selectbox(
-                        "Pilih Kandidat untuk Melihat Summary Penilaian:",
-                        options=df_results["Select_Label"].tolist(),
-                        index=len(df_results) - 1,
-                    )
-
-                    cand_data = df_results[
-                        df_results["Select_Label"] == selected_candidate_label
-                    ].iloc[0]
-
-                    st.markdown("### 📄 Executive Summary Laporan Kandidat")
-
-                    pdf_bytes = generate_candidate_pdf(cand_data)
-                    cand_name_clean = str(cand_data.get('Nama', 'Kandidat')).replace(' ', '_')
-                    
-                    st.download_button(
-                        label="📥 Download Laporan PDF Resmi",
-                        data=pdf_bytes,
-                        file_name=f"Executive_Summary_{cand_name_clean}.pdf",
-                        mime="application/pdf",
-                        type="primary"
-                    )
-
-                    st.write(f"**Nama Lengkap:** {cand_data.get('Nama', '-')}")
-                    st.write(f"**Email:** {cand_data.get('Email', '-')}")
-                    st.write(f"**Level Jabatan:** {cand_data.get('Level_Jabatan', '-')}")
-                    st.write(f"**Posisi/Divisi:** {cand_data.get('Posisi', '-')}")
-                    st.write(f"**Pengalaman:** {cand_data.get('Pengalaman', 0)} Tahun")
-                    st.write(f"**Waktu Ujian:** {cand_data.get('Timestamp', '-')}")
-
-                    st.markdown("---")
-
-                    c1, c2, c3 = st.columns(3)
-                    with c1:
-                        st.metric(
-                            "Skor Kognitif Laten (Theta)",
-                            f"{float(cand_data.get('Skor_Theta', 0)):+.2f}",
-                        )
-                    with c2:
-                        st.metric(
-                            "Estimasi IQ", f"IQ ~{cand_data.get('Estimasi_IQ', '-')}"
-                        )
-                    with c3:
-                        st.metric(
-                            "Status Kesesuaian",
-                            f"{cand_data.get('Status_Kesesuaian', '-')}",
+                    options_list = df_results["Select_Label"].tolist()
+                    if options_list:
+                        selected_candidate_label = st.selectbox(
+                            "Pilih Kandidat untuk Melihat Summary Penilaian:",
+                            options=options_list,
+                            index=len(options_list) - 1,
                         )
 
-                    st.markdown("---")
-                    st.subheader("📊 Profil Radar Kompetensi Perilaku (SJT)")
+                        cand_data = df_results[
+                            df_results["Select_Label"] == selected_candidate_label
+                        ].iloc[0]
 
-                    comp_dimensions = ["Leadership", "Stress_Tolerance", "Execution", "Integrity", "Strategic_Thinking"]
-                    comp_values = [float(cand_data.get(dim, 0)) for dim in comp_dimensions]
-                    comp_dimensions.append(comp_dimensions[0])
-                    comp_values.append(comp_values[0])
+                        st.markdown("### 📄 Executive Summary Laporan Kandidat")
 
-                    max_radar_val = max(max(comp_values), 10)
-
-                    fig_cand = go.Figure(
-                        data=go.Scatterpolar(
-                            r=comp_values, theta=comp_dimensions, fill="toself",
-                            line=dict(color="#0F52BA"), fillcolor="rgba(15, 82, 186, 0.2)"
+                        pdf_bytes = generate_candidate_pdf(cand_data)
+                        cand_name_clean = str(cand_data.get('Nama', 'Kandidat')).replace(' ', '_')
+                        
+                        st.download_button(
+                            label="📥 Download Laporan PDF Resmi",
+                            data=pdf_bytes,
+                            file_name=f"Executive_Summary_{cand_name_clean}.pdf",
+                            mime="application/pdf",
+                            type="primary"
                         )
-                    )
-                    fig_cand.update_layout(
-                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                        polar=dict(bgcolor="rgba(0,0,0,0)", radialaxis=dict(visible=True, range=[0, max_radar_val], color="#888888")),
-                        showlegend=False, margin=dict(l=30, r=30, t=20, b=20), height=350
-                    )
 
-                    rc1, rc2 = st.columns([1, 1])
-                    with rc1:
-                        st.plotly_chart(fig_cand, use_container_width=True)
+                        st.write(f"**Nama Lengkap:** {cand_data.get('Nama', '-')}")
+                        st.write(f"**Email:** {cand_data.get('Email', '-')}")
+                        st.write(f"**Level Jabatan:** {cand_data.get('Level_Jabatan', '-')}")
+                        st.write(f"**Posisi/Divisi:** {cand_data.get('Posisi', '-')}")
+                        st.write(f"**Pengalaman:** {cand_data.get('Pengalaman', 0)} Tahun")
+                        st.write(f"**Waktu Ujian:** {cand_data.get('Timestamp', '-')}")
 
-                    with rc2:
-                        st.markdown("### Kesimpulan & Rekomendasi HR")
-                        theta_val = float(cand_data.get("Skor_Theta", 0))
-                        if theta_val > 0.8:
-                            st.write("🟢 **Kandidat Sangat Direkomendasikan (High Potential).**")
-                        elif theta_val >= -0.2:
-                            st.write("🟡 **Kandidat Direkomendasikan dengan Pertimbangan.**")
-                        else:
-                            st.write("🔴 **Kurang Direkomendasikan.**")
+                        st.markdown("---")
 
-                        st.caption("Hasil dikalkulasi menggunakan pemodelan Item Response Theory (IRT).")
+                        c1, c2, c3 = st.columns(3)
+                        with c1:
+                            st.metric(
+                                "Skor Kognitif Laten (Theta)",
+                                f"{float(cand_data.get('Skor_Theta', 0)):+.2f}",
+                            )
+                        with c2:
+                            st.metric(
+                                "Estimasi IQ", f"IQ ~{cand_data.get('Estimasi_IQ', '-')}"
+                            )
+                        with c3:
+                            st.metric(
+                                "Status Kesesuaian",
+                                f"{cand_data.get('Status_Kesesuaian', '-')}",
+                            )
+
+                        st.markdown("---")
+                        st.subheader("📊 Profil Radar Kompetensi Perilaku (SJT)")
+
+                        comp_dimensions = ["Leadership", "Stress_Tolerance", "Execution", "Integrity", "Strategic_Thinking"]
+                        comp_values = [float(cand_data.get(dim, 0)) for dim in comp_dimensions]
+                        comp_dimensions.append(comp_dimensions[0])
+                        comp_values.append(comp_values[0])
+
+                        max_radar_val = max(max(comp_values), 10)
+
+                        fig_cand = go.Figure(
+                            data=go.Scatterpolar(
+                                r=comp_values, theta=comp_dimensions, fill="toself",
+                                line=dict(color="#0F52BA"), fillcolor="rgba(15, 82, 186, 0.2)"
+                            )
+                        )
+                        fig_cand.update_layout(
+                            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                            polar=dict(bgcolor="rgba(0,0,0,0)", radialaxis=dict(visible=True, range=[0, max_radar_val], color="#888888")),
+                            showlegend=False, margin=dict(l=30, r=30, t=20, b=20), height=350
+                        )
+
+                        rc1, rc2 = st.columns([1, 1])
+                        with rc1:
+                            st.plotly_chart(fig_cand, use_container_width=True)
+
+                        with rc2:
+                            st.markdown("### Kesimpulan & Rekomendasi HR")
+                            theta_val = float(cand_data.get("Skor_Theta", 0))
+                            if theta_val > 0.8:
+                                st.write("🟢 **Kandidat Sangat Direkomendasikan (High Potential).**")
+                            elif theta_val >= -0.2:
+                                st.write("🟡 **Kandidat Direkomendasikan dengan Pertimbangan.**")
+                            else:
+                                st.write("🔴 **Kurang Direkomendasikan.**")
+
+                            st.caption("Hasil dikalkulasi menggunakan pemodelan Item Response Theory (IRT).")
                 else:
                     st.info("Belum ada data kandidat yang tersimpan di Google Sheets.")
 
@@ -812,25 +826,26 @@ elif st.session_state.test_started and not st.session_state.test_finished:
     current_step = st.session_state.cog_step + len(st.session_state.sjt_responses)
     st.progress(min(current_step / total_expected_steps, 1.0))
 
-    # BAGIAN A: TES KOGNITIF ADAPTIF (EARLY STOPPING DENGAN SYARAT MINIMAL SOAL)
+    # BAGIAN A: TES KOGNITIF ADAPTIF
     is_early_stopped = (st.session_state.cog_step >= MIN_COG_QUESTIONS) and (st.session_state.se_theta <= TARGET_SE_ACCURACY)
     
     if st.session_state.cog_step < MAX_COG_QUESTIONS and not is_early_stopped:
         next_q = get_next_question(st.session_state.theta, st.session_state.used_cog_ids)
         if next_q:
-            st.session_state.used_cog_ids.add(next_q["id"])
+            st.session_state.current_q_id = next_q["id"]
             st.markdown(
                 f"### Bagian 1: Penalaran Kognitif (Soal {st.session_state.cog_step + 1} dari Max {MAX_COG_QUESTIONS})"
             )
             st.caption(f"Kategori Domain: **{next_q['category']}** | Estimasi Presisi Sistem (SE): `{st.session_state.se_theta:.3f}`")
 
-            with st.container():
+            with st.form(key=f"cog_form_{next_q['id']}"):
                 st.markdown(f"**{next_q['q']}**")
                 user_ans = st.radio(
                     "Pilih Jawaban Anda:", next_q["opts"], index=None, key=f"cog_radio_{next_q['id']}"
                 )
+                submitted_cog = st.form_submit_button("Simpan & Lanjutkan »")
 
-                if st.button("Simpan & Lanjutkan »", key=f"btn_{next_q['id']}"):
+                if submitted_cog:
                     if user_ans is None:
                         st.warning("⚠️ Harap pilih salah satu jawaban terlebih dahulu.")
                     else:
@@ -841,6 +856,7 @@ elif st.session_state.test_started and not st.session_state.test_finished:
                         st.session_state.theta, st.session_state.se_theta = update_theta_mle(
                             st.session_state.theta, st.session_state.cog_history
                         )
+                        st.session_state.used_cog_ids.add(next_q["id"])
                         st.session_state.cog_step += 1
                         st.rerun()
         else:
@@ -855,19 +871,21 @@ elif st.session_state.test_started and not st.session_state.test_finished:
         if sjt_index < len(SJT_BANK):
             q_sjt = SJT_BANK[sjt_index]
             st.caption(f"Soal {sjt_index + 1} dari {len(SJT_BANK)} | Dimensi: **{q_sjt['dimension']}**")
-            st.markdown(f"**{q_sjt['scenario']}**")
 
-            sjt_choice = st.radio(
-                "Pilih Tindakan Efektif Menurut Anda:", list(q_sjt["options"].values()), index=None, key=f"sjt_radio_{q_sjt['id']}"
-            )
+            with st.form(key=f"sjt_form_{q_sjt['id']}"):
+                st.markdown(f"**{q_sjt['scenario']}**")
+                sjt_choice = st.radio(
+                    "Pilih Tindakan Efektif Menurut Anda:", list(q_sjt["options"].values()), index=None, key=f"sjt_radio_{q_sjt['id']}"
+                )
+                submitted_sjt = st.form_submit_button("Kirim Jawaban SJT »")
 
-            if st.button("Kirim Jawaban SJT »", key=f"sjt_btn_{q_sjt['id']}"):
-                if sjt_choice is None:
-                    st.warning("⚠️ Harap pilih salah satu opsi tindakan.")
-                else:
-                    selected_key = [k for k, v in q_sjt["options"].items() if v == sjt_choice][0]
-                    st.session_state.sjt_responses[q_sjt["id"]] = q_sjt["scores"][selected_key]
-                    st.rerun()
+                if submitted_sjt:
+                    if sjt_choice is None:
+                        st.warning("⚠️ Harap pilih salah satu opsi tindakan.")
+                    else:
+                        selected_key = [k for k, v in q_sjt["options"].items() if v == sjt_choice][0]
+                        st.session_state.sjt_responses[q_sjt["id"]] = q_sjt["scores"][selected_key]
+                        st.rerun()
         else:
             st.success("Seluruh bagian tes telah diisi. Klik tombol di bawah untuk mengevaluasi hasil.")
             if st.button("🟢 SELESAIKAN DAN EVALUASI HASIL"):
@@ -880,7 +898,7 @@ elif st.session_state.test_finished:
 
     iq_equivalent = int(100 + (st.session_state.theta * 15))
     iq_equivalent = max(70, min(145, iq_equivalent))
-    fit_status = "Tinggi (Recommended)" if st.session_state.theta > 0.5 else "Moderat"
+    fit_status = get_fit_status_text(st.session_state.theta)
 
     comp_scores = {"Leadership": 0, "Stress_Tolerance": 0, "Execution": 0, "Integrity": 0, "Strategic_Thinking": 0}
     for resp in st.session_state.sjt_responses.values():
