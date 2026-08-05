@@ -313,7 +313,6 @@ def update_theta_mle(theta_current, history):
         p = irt_3pl(theta_current, a, b, c)
         p = max(min(p, 0.999), 0.001)
 
-        # Standar turunan 3PL
         dp = a * ((p - c) / (1.0 - c + eps)) * (1.0 - p)
         
         num += dp * (u - p) / (p * (1.0 - p) + eps)
@@ -367,7 +366,6 @@ def generate_sjt_narrative(cand_data):
     
     narratives = []
     
-    # 1. Leadership
     if lead >= 30:
         narratives.append("• **Leadership (Sangat Dominan):** Memiliki inisiatif memimpin yang tinggi, tegas, dan berani mengambil kendali saat krisis.")
     elif lead >= 20:
@@ -375,25 +373,21 @@ def generate_sjt_narrative(cand_data):
     else:
         narratives.append("• **Leadership (Rendah):** Cenderung pasif dan menghindari peran kepemimpinan langsung.")
 
-    # 2. Execution
     if exec_score >= 25:
         narratives.append("• **Execution (Kuat):** Sangat berorientasi pada pencapaian target dan penyelesaian tugas (*drive for results*).")
     else:
         narratives.append("• **Execution (Moderat):** Membutuhkan supervisi berkala untuk menjaga ritme kerja.")
 
-    # 3. Strategic Thinking
     if strat >= 25:
         narratives.append("• **Strategic Thinking (Tinggi):** Mampu melihat gambaran besar dan merencanakan langkah jangka panjang.")
     else:
         narratives.append("• **Strategic Thinking (Moderat):** Berfokus pada taktis jangka pendek operasional.")
 
-    # 4. Stress Tolerance
     if stress < 20:
         narratives.append("• ⚠️ **Stress Tolerance (Area Perhatian):** Rentan terhadap penurunan efektivitas atau emosi saat tekanan kerja memuncak.")
     else:
         narratives.append("• **Stress Tolerance (Stabil):** Mampu mengelola tekanan dan beban kerja dinamis dengan baik.")
 
-    # 5. Integrity
     if integ < 20:
         narratives.append("• ⚠️ **Integrity (Area Perhatian):** Cenderung lebih mengutamakan hasil/fleksibilitas ketimbang kepatuhan kaku pada prosedur.")
     else:
@@ -408,57 +402,31 @@ def render_timer():
     elapsed = time.time() - st.session_state.start_time
     remaining_time = max(0, int(TOTAL_TIME_SECONDS - elapsed))
 
-    timer_code = """
-    <div style="
-        background-color: #1E293B;
-        border: 1px solid #334155;
-        border-radius: 8px;
-        padding: 8px 12px;
-        color: #38BDF8;
-        font-family: system-ui, -apple-system, sans-serif;
-        font-size: 14px;
-        display: flex;
-        align-items: center;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    ">
+    timer_code = f"""
+    <div style="background-color: #1E293B; border: 1px solid #334155; border-radius: 8px; padding: 8px 12px; color: #38BDF8; font-family: system-ui, -apple-system, sans-serif; font-size: 14px; display: flex; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3);">
         ⏱️ &nbsp; <b>Sisa Waktu:</b> &nbsp;
-        <span id="js_timer" style="
-            background-color: #0F172A;
-            padding: 4px 8px;
-            border-radius: 6px;
-            font-family: monospace;
-            font-size: 16px;
-            color: #F43F5E;
-            font-weight: bold;
-        ">--:--</span>
+        <span id="js_timer" style="background-color: #0F172A; padding: 4px 8px; border-radius: 6px; font-family: monospace; font-size: 16px; color: #F43F5E; font-weight: bold;">--:--</span>
     </div>
-
     <script>
-        let timeLeft = TIME_LEFT_PLACEHOLDER;
+        let timeLeft = {remaining_time};
         const timerDisplay = document.getElementById('js_timer');
-
-        function updateTimer() {
+        function updateTimer() {{
             let minutes = Math.floor(timeLeft / 60);
             let seconds = timeLeft % 60;
-
             minutes = minutes < 10 ? '0' + minutes : minutes;
             seconds = seconds < 10 ? '0' + seconds : seconds;
-
             timerDisplay.textContent = minutes + ':' + seconds;
-
-            if (timeLeft <= 0) {
+            if (timeLeft <= 0) {{
                 timerDisplay.textContent = "00:00 - HABIS!";
                 clearInterval(timerInterval);
-            } else {
+            }} else {{
                 timeLeft--;
-            }
-        }
-
+            }}
+        }}
         updateTimer();
         const timerInterval = setInterval(updateTimer, 1000);
     </script>
-    """.replace("TIME_LEFT_PLACEHOLDER", str(remaining_time))
-
+    """
     st.components.v1.html(timer_code, height=50)
 
 def save_to_google_sheets(cand, theta, se_val, iq_equivalent, fit_status, comp_scores):
@@ -498,7 +466,7 @@ def save_to_google_sheets(cand, theta, se_val, iq_equivalent, fit_status, comp_s
         st.session_state.saved_to_gsheets = True
         return True
     except Exception:
-        st.session_state.saved_to_gsheets = True  # Mencegah loop panggilan ulang di mode offline
+        st.session_state.saved_to_gsheets = True
         st.toast("ℹ️ Data tersimpan secara lokal (Google Sheets offline).")
         return False
 
@@ -535,53 +503,37 @@ def draw_reportlab_radar(labels, values):
 def generate_candidate_pdf(cand_data):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        rightMargin=36,
-        leftMargin=36,
-        topMargin=36,
-        bottomMargin=36,
+        buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36
     )
 
     styles = getSampleStyleSheet()
     
     title_style = ParagraphStyle(
-        'DocTitle', parent=styles['Heading1'],
-        fontName='Helvetica-Bold', fontSize=18, leading=22,
+        'DocTitle', parent=styles['Heading1'], fontName='Helvetica-Bold', fontSize=18, leading=22,
         textColor=colors.HexColor('#0F52BA'), spaceAfter=4
     )
-    
     subtitle_style = ParagraphStyle(
-        'DocSubTitle', parent=styles['Normal'],
-        fontName='Helvetica', fontSize=9,
+        'DocSubTitle', parent=styles['Normal'], fontName='Helvetica', fontSize=9,
         textColor=colors.HexColor('#555555'), spaceAfter=10
     )
-
     h2_style = ParagraphStyle(
-        'SectionHeading', parent=styles['Heading2'],
-        fontName='Helvetica-Bold', fontSize=11, leading=14,
+        'SectionHeading', parent=styles['Heading2'], fontName='Helvetica-Bold', fontSize=11, leading=14,
         textColor=colors.HexColor('#1E293B'), spaceBefore=8, spaceAfter=6
     )
-
     body_style = ParagraphStyle(
-        'BodyTextCustom', parent=styles['Normal'],
-        fontName='Helvetica', fontSize=9, leading=12,
+        'BodyTextCustom', parent=styles['Normal'], fontName='Helvetica', fontSize=9, leading=12,
         textColor=colors.HexColor('#333333')
     )
-
     bold_label_style = ParagraphStyle(
-        'BoldLabel', parent=body_style,
-        fontName='Helvetica-Bold', textColor=colors.HexColor('#1E293B')
+        'BoldLabel', parent=body_style, fontName='Helvetica-Bold', textColor=colors.HexColor('#1E293B')
     )
 
     story = []
 
-    # 1. Header Dokumen
     story.append(Paragraph("Executive Candidate Assessment Report", title_style))
     story.append(Paragraph("Standardized Adaptive Testing & Behavioral Competency Evaluation", subtitle_style))
     story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#0F52BA'), spaceAfter=10))
 
-    # 2. Data Diri Kandidat
     story.append(Paragraph("📌 Data Diri Kandidat", h2_style))
     info_table_data = [
         [Paragraph("Nama Lengkap:", bold_label_style), Paragraph(str(cand_data.get('Nama', '-')), body_style),
@@ -605,7 +557,6 @@ def generate_candidate_pdf(cand_data):
     story.append(t_info)
     story.append(Spacer(1, 8))
 
-    # 3. Kognitif Metrics
     story.append(Paragraph("🧠 Evaluasi Kognitif (IRT)", h2_style))
     theta_val = float(cand_data.get('Skor_Theta', 0))
     iq_val = str(cand_data.get('Estimasi_IQ', '-'))
@@ -630,7 +581,6 @@ def generate_candidate_pdf(cand_data):
     story.append(t_metrics)
     story.append(Spacer(1, 8))
 
-    # 4. Generate Radar Chart Vektor
     labels = ["Leadership", "Stress Tol.", "Execution", "Integrity", "Strategic Think."]
     raw_vals = [
         float(cand_data.get('Leadership', 0)),
@@ -641,9 +591,7 @@ def generate_candidate_pdf(cand_data):
     ]
     radar_drawing = draw_reportlab_radar(labels, raw_vals)
 
-    # 5. Tabel SJT Samping-Sampingan
     story.append(Paragraph("📊 Profil Kompetensi Perilaku (SJT)", h2_style))
-    
     sjt_table_data = [
         [Paragraph("Dimensi Kompetensi", bold_label_style), Paragraph("Skor", bold_label_style)],
         [Paragraph("Leadership & Team Management", body_style), Paragraph(str(cand_data.get('Leadership', 0)), body_style)],
@@ -674,7 +622,6 @@ def generate_candidate_pdf(cand_data):
     story.append(side_by_side_table)
     story.append(Spacer(1, 10))
 
-    # 6. Kesimpulan HR
     story.append(Paragraph("📋 Kesimpulan & Rekomendasi HR", h2_style))
     if theta_val > 0.8:
         recom_text = "<b>HIGH RECOMMENDED (Sangat Direkomendasikan):</b> Memiliki kapasitas kognitif tingkat tinggi serta pemikiran strategis yang sangat adaptif."
@@ -704,7 +651,7 @@ if st.session_state.test_started and not st.session_state.test_finished:
 st.title("🛡️ System Asesmen General Kandidat - Phase 2")
 st.caption("Standardized Adaptive Testing (IRT 3PL Expanded Bank) & Behavioral Evaluation System")
 
-# --- PHASE 1: REGISTRASI & ADMIN ---
+# PHASE 1: REGISTRASI & ADMIN
 if not st.session_state.test_started and not st.session_state.test_finished:
     
     with st.expander("🔐 Akses Laporan Hasil (Khusus Admin / HR)", expanded=False):
@@ -719,6 +666,10 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 
                     st.markdown("---")
                     st.subheader("🔍 Detail & Summary Penilaian Kandidat")
+
+                    df_results["Nama"] = df_results["Nama"].fillna("-")
+                    df_results["Email"] = df_results["Email"].fillna("-")
+                    df_results["Timestamp"] = df_results["Timestamp"].fillna("-")
 
                     df_results["Select_Label"] = (
                         df_results["Nama"].astype(str)
@@ -765,19 +716,11 @@ if not st.session_state.test_started and not st.session_state.test_finished:
 
                         c1, c2, c3 = st.columns(3)
                         with c1:
-                            st.metric(
-                                "Skor Kognitif Laten (Theta)",
-                                f"{float(cand_data.get('Skor_Theta', 0)):+.2f}",
-                            )
+                            st.metric("Skor Kognitif Laten (Theta)", f"{float(cand_data.get('Skor_Theta', 0)):+.2f}")
                         with c2:
-                            st.metric(
-                                "Estimasi IQ", f"IQ ~{cand_data.get('Estimasi_IQ', '-')}"
-                            )
+                            st.metric("Estimasi IQ", f"IQ ~{cand_data.get('Estimasi_IQ', '-')}")
                         with c3:
-                            st.metric(
-                                "Status Kesesuaian",
-                                f"{cand_data.get('Status_Kesesuaian', '-')}",
-                            )
+                            st.metric("Status Kesesuaian", f"{cand_data.get('Status_Kesesuaian', '-')}")
 
                         st.markdown("---")
                         st.subheader("📊 Profil Radar Kompetensi Perilaku (SJT)")
@@ -819,8 +762,6 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                             
                             st.markdown("---")
                             st.markdown("#### 🔍 Interpretasi Perilaku Otomatis:")
-                            
-                            # Render poin interpretasi detail
                             sjt_text = generate_sjt_narrative(cand_data)
                             st.markdown(sjt_text)
                 else:
@@ -869,7 +810,7 @@ if not st.session_state.test_started and not st.session_state.test_finished:
             else:
                 st.error("Mohon lengkapi semua kolom wajib.")
 
-# --- PHASE 2: PENGERJAAN TES ---
+# PHASE 2: PENGERJAAN TES
 elif st.session_state.test_started and not st.session_state.test_finished:
     render_timer()
 
@@ -943,7 +884,7 @@ elif st.session_state.test_started and not st.session_state.test_finished:
                 st.session_state.test_finished = True
                 st.rerun()
 
-# --- PHASE 3: TERIMA KASIH & SELESAI ---
+# PHASE 3: TERIMA KASIH & SELESAI
 elif st.session_state.test_finished:
     cand = st.session_state.candidate_info
 
@@ -969,7 +910,7 @@ elif st.session_state.test_finished:
         "Hasil tes bersifat rahasia dan akan dievaluasi secara internal. Anda dipersilakan untuk menutup halaman ini."
     )
 
-# --- FOOTER ---
+# FOOTER
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: #888888; font-size: 13px; font-weight: 500;'>Created by Iqbal Mantam</div>",
