@@ -357,6 +357,50 @@ def get_fit_status_text(theta_val):
     else:
         return "Rendah (Not Recommended)"
 
+def generate_sjt_narrative(cand_data):
+    """Generator Deskripsi Interpretasi Perilaku Otomatis"""
+    lead = float(cand_data.get('Leadership', 0))
+    exec_score = float(cand_data.get('Execution', 0))
+    strat = float(cand_data.get('Strategic_Thinking', 0))
+    stress = float(cand_data.get('Stress_Tolerance', 0))
+    integ = float(cand_data.get('Integrity', 0))
+    
+    narratives = []
+    
+    # 1. Leadership
+    if lead >= 30:
+        narratives.append("• **Leadership (Sangat Dominan):** Memiliki inisiatif memimpin yang tinggi, tegas, dan berani mengambil kendali saat krisis.")
+    elif lead >= 20:
+        narratives.append("• **Leadership (Cukup):** Mampu mengarahkan tim dengan pendekatan yang proporsional.")
+    else:
+        narratives.append("• **Leadership (Rendah):** Cenderung pasif dan menghindari peran kepemimpinan langsung.")
+
+    # 2. Execution
+    if exec_score >= 25:
+        narratives.append("• **Execution (Kuat):** Sangat berorientasi pada pencapaian target dan penyelesaian tugas (*drive for results*).")
+    else:
+        narratives.append("• **Execution (Moderat):** Membutuhkan supervisi berkala untuk menjaga ritme kerja.")
+
+    # 3. Strategic Thinking
+    if strat >= 25:
+        narratives.append("• **Strategic Thinking (Tinggi):** Mampu melihat gambaran besar dan merencanakan langkah jangka panjang.")
+    else:
+        narratives.append("• **Strategic Thinking (Moderat):** Berfokus pada taktis jangka pendek operasional.")
+
+    # 4. Stress Tolerance
+    if stress < 20:
+        narratives.append("• ⚠️ **Stress Tolerance (Area Perhatian):** Rentan terhadap penurunan efektivitas atau emosi saat tekanan kerja memuncak.")
+    else:
+        narratives.append("• **Stress Tolerance (Stabil):** Mampu mengelola tekanan dan beban kerja dinamis dengan baik.")
+
+    # 5. Integrity
+    if integ < 20:
+        narratives.append("• ⚠️ **Integrity (Area Perhatian):** Cenderung lebih mengutamakan hasil/fleksibilitas ketimbang kepatuhan kaku pada prosedur.")
+    else:
+        narratives.append("• **Integrity (Tinggi):** Berpegang teguh pada aturan, etika, dan transparansi kerja.")
+
+    return "\n\n".join(narratives)
+
 def render_timer():
     """Timer Client-Side JavaScript (Fixed & Non-blocking)"""
     if not st.session_state.start_time:
@@ -772,6 +816,13 @@ if not st.session_state.test_started and not st.session_state.test_finished:
                                 st.write("🔴 **Kurang Direkomendasikan.**")
 
                             st.caption("Hasil dikalkulasi menggunakan pemodelan Item Response Theory (IRT).")
+                            
+                            st.markdown("---")
+                            st.markdown("#### 🔍 Interpretasi Perilaku Otomatis:")
+                            
+                            # Render poin interpretasi detail
+                            sjt_text = generate_sjt_narrative(cand_data)
+                            st.markdown(sjt_text)
                 else:
                     st.info("Belum ada data kandidat yang tersimpan di Google Sheets.")
 
